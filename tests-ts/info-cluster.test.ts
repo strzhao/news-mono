@@ -10,6 +10,7 @@ describe("info cluster", () => {
       infoUrl: "https://ref.example.com/path?ref=abc&id=2",
       sourceId: "source",
       sourceName: "Source",
+      sourceType: "rss",
       publishedAt: null,
       summaryRaw: "",
       leadParagraph: "",

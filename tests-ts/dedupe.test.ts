@@ -16,6 +16,7 @@ describe("dedupe", () => {
       infoUrl: "",
       sourceId: "s1",
       sourceName: "Source",
+      sourceType: "rss",
       publishedAt: null,
       summaryRaw: "",
       leadParagraph: "",

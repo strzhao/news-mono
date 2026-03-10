@@ -19,6 +19,7 @@ export interface Article {
   url: string;
   sourceId: string;
   sourceName: string;
+  sourceType: string;
   publishedAt: Date | null;
   summaryRaw: string;
   leadParagraph: string;

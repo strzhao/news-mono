@@ -213,6 +213,7 @@ export async function fetchArticles(
             url,
             sourceId: source.id,
             sourceName: source.name,
+            sourceType: source.sourceType || "rss",
             publishedAt: parsePublishedAt(entry, true),
             summaryRaw: summary,
             leadParagraph: lead,

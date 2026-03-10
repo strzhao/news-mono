@@ -186,6 +186,7 @@ export async function runLegacyImport(options: LegacyImportOptions = {}): Promis
         url,
         sourceId,
         sourceName: sources.get(sourceId)?.name || sourceId,
+        sourceType: "legacy_import",
         publishedAt: publishedAt && !Number.isNaN(publishedAt.getTime()) ? publishedAt : null,
         summaryRaw: summary,
         leadParagraph: toLead(summary || title),

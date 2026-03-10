@@ -463,6 +463,53 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
         const evaluationPool = ranked.slice(0, maxEvalArticles);
         result.dedupedCount = evaluationPool.length;
 
+        // Pre-crawl content for sources with empty feeds (e.g. WeChat/WeWe RSS Atom feeds lack content/summary)
+        const preCrawlSourceTypes = new Set(
+          String(process.env.PRE_CRAWL_SOURCE_TYPES || "wechat")
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        );
+        const preCrawlEnabled = preCrawlSourceTypes.size > 0;
+        const preCrawlTimeoutMs = boundedInt(String(process.env.PRE_CRAWL_TIMEOUT_MS || "8000"), 8_000, 500, 30_000);
+        const preCrawlConcurrency = boundedInt(String(process.env.PRE_CRAWL_CONCURRENCY || "3"), 3, 1, 8);
+        let preCrawlStats = { attempted: 0, enriched: 0, failed: 0 };
+
+        if (preCrawlEnabled && evaluationPool.length) {
+          const needsPreCrawl = evaluationPool.filter(
+            (a) => preCrawlSourceTypes.has(a.sourceType) && (!a.summaryRaw || a.summaryRaw === a.title),
+          );
+          preCrawlStats.attempted = needsPreCrawl.length;
+
+          if (needsPreCrawl.length) {
+            let cursor = 0;
+            async function preCrawlWorker(): Promise<void> {
+              while (cursor < needsPreCrawl.length) {
+                const idx = cursor++;
+                const article = needsPreCrawl[idx];
+                try {
+                  const content = await fetchArticleContent(article.url, {
+                    timeoutMs: preCrawlTimeoutMs,
+                    maxTextChars: 2400,
+                  });
+                  if (content.text && content.text.length > article.contentText.length) {
+                    const snippet = content.text.slice(0, 2400);
+                    article.summaryRaw = snippet.slice(0, 600);
+                    article.leadParagraph = snippet.split(/[。.!?\n]/).filter(Boolean)[0]?.slice(0, 280) || article.leadParagraph;
+                    article.contentText = [article.title, snippet].join(" ").slice(0, 2400);
+                    preCrawlStats.enriched++;
+                  }
+                } catch {
+                  preCrawlStats.failed++;
+                }
+              }
+            }
+            await Promise.all(
+              Array.from({ length: Math.min(preCrawlConcurrency, needsPreCrawl.length) }, () => preCrawlWorker()),
+            );
+          }
+        }
+
         if (!evaluationPool.length) {
           let prunedByCurrentScore = 0;
           if (mergeDailySnapshot) {
@@ -491,6 +538,9 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             daily_snapshot_merge_mode: mergeDailySnapshot,
             max_eval_articles: maxEvalArticles,
             ...aiTelemetryStats(null, "", ""),
+            pre_crawl_attempted: preCrawlStats.attempted,
+            pre_crawl_enriched: preCrawlStats.enriched,
+            pre_crawl_failed: preCrawlStats.failed,
             hq_content_crawl_enabled: crawlHighQualityContentEnabled,
             hq_content_crawl_limit: crawlHighQualityContentLimit,
             hq_content_crawl_attempted: 0,
@@ -696,6 +746,9 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
           feedback_adjustment_positive_count: feedbackAdjustmentPositive,
           feedback_adjustment_negative_count: feedbackAdjustmentNegative,
           feedback_adjustment_max_per_article: feedbackMaxPerArticle,
+          pre_crawl_attempted: preCrawlStats.attempted,
+          pre_crawl_enriched: preCrawlStats.enriched,
+          pre_crawl_failed: preCrawlStats.failed,
           hq_content_crawl_enabled: crawlHighQualityContentEnabled,
           hq_content_crawl_limit: crawlHighQualityContentLimit,
           hq_content_crawl_concurrency: crawlHighQualityContentConcurrency,

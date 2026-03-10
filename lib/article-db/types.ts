@@ -292,6 +292,13 @@ export interface PrimaryTypeStat {
   count: number;
 }
 
+export interface ChannelAnalyticsStat {
+  source_channel: string;
+  analysis_count: number;
+  analysis_success_count: number;
+  high_quality_count: number;
+}
+
 export interface IngestionRunRow {
   id: string;
   run_date: string;

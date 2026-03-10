@@ -11,42 +11,6 @@
     sans-serif;
 }
 
-.hero {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 18px 22px;
-  border: 1px solid #d4d9e6;
-  border-radius: 16px;
-  background:
-    radial-gradient(1100px 260px at 0% -10%, #e5efff 0%, transparent 70%),
-    radial-gradient(800px 260px at 100% -10%, #f8efe4 0%, transparent 70%),
-    #f8fbff;
-}
-
-.eyebrow {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #5c6373;
-  font-weight: 600;
-}
-
-.hero h1 {
-  margin: 6px 0 0;
-  font-size: clamp(26px, 4.2vw, 42px);
-  line-height: 1.12;
-  letter-spacing: -0.02em;
-}
-
-.meta {
-  margin: 10px 0 0;
-  color: #4f5868;
-  font-size: 14px;
-}
-
 .homeLink {
   display: inline-flex;
   align-items: center;
@@ -994,4 +958,133 @@
   .sourceBarLabel {
     width: 100px;
   }
+
+  .channelAnalyticsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── Compact Header ───────────────────────────── */
+.headerCompact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border: 1px solid #d4d9e6;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fbff 0%, #f5f3ff 100%);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.headerMeta {
+  font-size: 13px;
+  color: #4f5868;
+}
+
+/* ── Tab Bar ──────────────────────────────────── */
+.tabBar {
+  display: flex;
+  gap: 0;
+  margin-top: 16px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.tab,
+.tabActive {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  color: #4f5868;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover {
+  color: #2563eb;
+}
+
+.tabActive {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+/* ── Channel Analytics ────────────────────────── */
+.channelAnalyticsSection {
+  margin-top: 20px;
+}
+
+.channelAnalyticsSection h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.channelAnalyticsGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.channelAnalyticsCard {
+  border: 1px solid #dce1ec;
+  border-radius: 10px;
+  padding: 14px;
+  background: #fbfdff;
+}
+
+.channelAnalyticsCard[data-channel="rss"] { border-left: 3px solid #3b82f6; }
+.channelAnalyticsCard[data-channel="twitter"] { border-left: 3px solid #1d9bf0; }
+.channelAnalyticsCard[data-channel="wechat"] { border-left: 3px solid #07c160; }
+.channelAnalyticsCard[data-channel="github"] { border-left: 3px solid #8b5cf6; }
+
+.channelAnalyticsCard h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.channelAnalyticsCard dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.channelAnalyticsCard dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.channelAnalyticsCard dt {
+  font-size: 12px;
+  color: #4f5868;
+}
+
+.channelAnalyticsCard dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111317;
+}
+
+/* ── Article Count ────────────────────────────── */
+.articleCount {
+  margin: 12px 0 4px;
+  font-size: 13px;
+  color: #4f5868;
 }

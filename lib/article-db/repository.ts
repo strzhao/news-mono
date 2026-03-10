@@ -10,6 +10,7 @@ import {
   ArchivedArticleRow,
   ArticleQualityFeedback,
   ArticleQualityFeedbackEvent,
+  ChannelAnalyticsStat,
   ChannelStat,
   DailyTrendPoint,
   FeedbackAdjustmentMap,
@@ -3308,6 +3309,44 @@ export async function getArchiveDailyTrend(
     date: r.date,
     article_count: Number(r.article_count),
     high_count: Number(r.high_count),
+  }));
+}
+
+export async function getChannelAnalytics(fromDate: string, toDate: string): Promise<ChannelAnalyticsStat[]> {
+  await ensureArticleDbSchema();
+  const pool = getPgPool();
+  const from = normalizeDate(fromDate);
+  const to = normalizeDate(toDate);
+  const threshold = boundedScore(
+    Number(Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50"))),
+    50,
+  );
+  const result = await pool.query<{
+    source_channel: string;
+    analysis_count: string;
+    analysis_success_count: string;
+    high_quality_count: string;
+  }>(
+    `
+    SELECT s.type AS source_channel,
+           COUNT(*)::text AS analysis_count,
+           COUNT(*) FILTER (WHERE aa.article_id IS NOT NULL AND aa.quality_score > 0)::text AS analysis_success_count,
+           COUNT(*) FILTER (WHERE d.quality_score_snapshot >= $3)::text AS high_quality_count
+    FROM daily_analyzed_articles d
+    INNER JOIN articles a ON a.id = d.article_id
+    INNER JOIN sources s ON s.id = a.source_id
+    LEFT JOIN article_analysis aa ON aa.article_id = a.id
+    WHERE d.date BETWEEN $1::date AND $2::date
+    GROUP BY s.type
+    ORDER BY analysis_count DESC
+    `,
+    [from, to, threshold],
+  );
+  return result.rows.map((r) => ({
+    source_channel: r.source_channel,
+    analysis_count: Number(r.analysis_count),
+    analysis_success_count: Number(r.analysis_success_count),
+    high_quality_count: Number(r.high_quality_count),
   }));
 }
 

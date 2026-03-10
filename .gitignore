@@ -13,3 +13,4 @@ coverage/
 *.tsbuildinfo
 .vercel
 extraction-worker/logs/
+extraction-worker/data/

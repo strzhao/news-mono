@@ -233,9 +233,9 @@ sources:
     source_type: github
     source_weight: 0.85
 
-  # 微信公众号 (暂不可用: 当前RSSHub实例不支持微信路由，需部署WeWe RSS或配置feeddd)
-  # - id: wechat_cyberchanxin
-  #   name: 赛博禅心（微信）
-  #   rsshub_route: /wechat/mp/profile/MzI3NDI5NjM2OQ==
-  #   source_type: wechat
-  #   source_weight: 0.88
+  # 微信公众号 (via 腾讯云 WeWe RSS)
+  - id: wechat_cyberchanxin
+    name: 赛博禅心（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3934419561.atom
+    source_type: wechat
+    source_weight: 0.88

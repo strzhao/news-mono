@@ -239,3 +239,38 @@ sources:
     url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3934419561.atom
     source_type: wechat
     source_weight: 0.88
+  - id: wechat_qbitai
+    name: 量子位（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3236757533.atom
+    source_type: wechat
+    source_weight: 0.92
+  - id: wechat_jiqizhixin
+    name: 机器之心（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3073282833.atom
+    source_type: wechat
+    source_weight: 0.92
+  - id: wechat_xinzhiyuan
+    name: 新智元（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3271041950.atom
+    source_type: wechat
+    source_weight: 0.90
+  - id: wechat_latepost
+    name: 晚点LatePost（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3572959446.atom
+    source_type: wechat
+    source_weight: 0.88
+  - id: wechat_aitechtalk
+    name: AI科技评论（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3098132220.atom
+    source_type: wechat
+    source_weight: 0.88
+  - id: wechat_kongmou
+    name: 孔某人的低维认知（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3940569956.atom
+    source_type: wechat
+    source_weight: 0.85
+  - id: wechat_gsytech
+    name: GSYTech（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3875070218.atom
+    source_type: wechat
+    source_weight: 0.85

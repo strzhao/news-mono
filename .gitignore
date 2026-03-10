@@ -14,3 +14,4 @@ coverage/
 .vercel
 extraction-worker/logs/
 extraction-worker/data/
+.env*.local

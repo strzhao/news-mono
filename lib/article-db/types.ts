@@ -262,6 +262,36 @@ export interface ArticleSummaryRow {
   updated_at: string;
 }
 
+export interface SourceOption {
+  id: string;
+  name: string;
+  source_channel: string;
+}
+
+export interface ChannelStat {
+  source_channel: string;
+  article_count: number;
+}
+
+export interface SourceStat {
+  source_id: string;
+  source_name: string;
+  source_channel: string;
+  article_count: number;
+  high_count: number;
+}
+
+export interface DailyTrendPoint {
+  date: string;
+  article_count: number;
+  high_count: number;
+}
+
+export interface PrimaryTypeStat {
+  primary_type: string;
+  count: number;
+}
+
 export interface IngestionRunRow {
   id: string;
   run_date: string;

@@ -10,13 +10,18 @@ import {
   ArchivedArticleRow,
   ArticleQualityFeedback,
   ArticleQualityFeedbackEvent,
+  ChannelStat,
+  DailyTrendPoint,
   FeedbackAdjustmentMap,
   HighQualityArticleDetail,
   HighQualityArticleGroup,
   HighQualityArticleItem,
   IngestionRunRow,
   PersistedArticleImage,
+  PrimaryTypeStat,
   QualityTier,
+  SourceOption,
+  SourceStat,
   TagDefinition,
   TagGovernanceFeedbackEvent,
   TagGovernanceFeedbackStat,
@@ -3193,4 +3198,138 @@ export async function tryLockSummaryForGeneration(articleId: string): Promise<bo
   );
 
   return insertResult.rowCount !== null && insertResult.rowCount > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Archive statistics queries
+// ---------------------------------------------------------------------------
+
+export async function listActiveSources(): Promise<SourceOption[]> {
+  await ensureArticleDbSchema();
+  const pool = getPgPool();
+  const result = await pool.query<{ id: string; name: string; source_channel: string }>(
+    `SELECT id, name, type AS source_channel FROM sources WHERE is_active = TRUE ORDER BY type, name`,
+  );
+  return result.rows;
+}
+
+export async function getArchiveStatsByChannel(fromDate: string, toDate: string): Promise<ChannelStat[]> {
+  await ensureArticleDbSchema();
+  const pool = getPgPool();
+  const from = normalizeDate(fromDate);
+  const to = normalizeDate(toDate);
+  const result = await pool.query<{ source_channel: string; article_count: string }>(
+    `
+    SELECT s.type AS source_channel, COUNT(*)::text AS article_count
+    FROM daily_analyzed_articles d
+    INNER JOIN articles a ON a.id = d.article_id
+    INNER JOIN sources s ON s.id = a.source_id
+    WHERE d.date BETWEEN $1::date AND $2::date
+    GROUP BY s.type
+    ORDER BY article_count DESC
+    `,
+    [from, to],
+  );
+  return result.rows.map((r) => ({
+    source_channel: r.source_channel,
+    article_count: Number(r.article_count),
+  }));
+}
+
+export async function getArchiveStatsBySource(
+  fromDate: string,
+  toDate: string,
+  qualityThreshold?: number,
+): Promise<SourceStat[]> {
+  await ensureArticleDbSchema();
+  const pool = getPgPool();
+  const from = normalizeDate(fromDate);
+  const to = normalizeDate(toDate);
+  const threshold = boundedScore(
+    Number(qualityThreshold ?? Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50"))),
+    50,
+  );
+  const result = await pool.query<{
+    source_id: string;
+    source_name: string;
+    source_channel: string;
+    article_count: string;
+    high_count: string;
+  }>(
+    `
+    SELECT a.source_id,
+           s.name AS source_name,
+           s.type AS source_channel,
+           COUNT(*)::text AS article_count,
+           COUNT(*) FILTER (WHERE d.quality_score_snapshot >= $3)::text AS high_count
+    FROM daily_analyzed_articles d
+    INNER JOIN articles a ON a.id = d.article_id
+    INNER JOIN sources s ON s.id = a.source_id
+    WHERE d.date BETWEEN $1::date AND $2::date
+    GROUP BY a.source_id, s.name, s.type
+    ORDER BY article_count DESC
+    `,
+    [from, to, threshold],
+  );
+  return result.rows.map((r) => ({
+    source_id: r.source_id,
+    source_name: r.source_name,
+    source_channel: r.source_channel,
+    article_count: Number(r.article_count),
+    high_count: Number(r.high_count),
+  }));
+}
+
+export async function getArchiveDailyTrend(
+  fromDate: string,
+  toDate: string,
+  qualityThreshold?: number,
+): Promise<DailyTrendPoint[]> {
+  await ensureArticleDbSchema();
+  const pool = getPgPool();
+  const from = normalizeDate(fromDate);
+  const to = normalizeDate(toDate);
+  const threshold = boundedScore(
+    Number(qualityThreshold ?? Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50"))),
+    50,
+  );
+  const result = await pool.query<{ date: string; article_count: string; high_count: string }>(
+    `
+    SELECT d.date::text, COUNT(*)::text AS article_count,
+           COUNT(*) FILTER (WHERE d.quality_score_snapshot >= $3)::text AS high_count
+    FROM daily_analyzed_articles d
+    WHERE d.date BETWEEN $1::date AND $2::date
+    GROUP BY d.date
+    ORDER BY d.date ASC
+    `,
+    [from, to, threshold],
+  );
+  return result.rows.map((r) => ({
+    date: r.date,
+    article_count: Number(r.article_count),
+    high_count: Number(r.high_count),
+  }));
+}
+
+export async function getArchiveStatsByPrimaryType(fromDate: string, toDate: string): Promise<PrimaryTypeStat[]> {
+  await ensureArticleDbSchema();
+  const pool = getPgPool();
+  const from = normalizeDate(fromDate);
+  const to = normalizeDate(toDate);
+  const result = await pool.query<{ primary_type: string; count: string }>(
+    `
+    SELECT COALESCE(aa.primary_type, 'unknown') AS primary_type, COUNT(*)::text AS count
+    FROM daily_analyzed_articles d
+    INNER JOIN articles a ON a.id = d.article_id
+    INNER JOIN article_analysis aa ON aa.article_id = a.id
+    WHERE d.date BETWEEN $1::date AND $2::date
+    GROUP BY aa.primary_type
+    ORDER BY count DESC
+    `,
+    [from, to],
+  );
+  return result.rows.map((r) => ({
+    primary_type: r.primary_type,
+    count: Number(r.count),
+  }));
 }

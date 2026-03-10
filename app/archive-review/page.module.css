@@ -66,6 +66,8 @@
   background: #e7efff;
 }
 
+/* ── AI Observability Panel ─────────────────────────── */
+
 .aiPanel {
   margin-top: 16px;
   border: 1px solid #d9deea;
@@ -159,10 +161,268 @@
   color: #4f5868;
 }
 
+/* ── Statistics Dashboard ───────────────────────────── */
+
+.statsPanel {
+  margin-top: 16px;
+  border: 1px solid #d9deea;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.statsPanelHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.statsPanelHead h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+
+.statsPanelHead p {
+  margin: 0;
+  font-size: 12px;
+  color: #4f5868;
+}
+
+/* KPI overview row */
+.kpiGrid {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.kpiCard {
+  border: 1px solid #dce1ec;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fbfdff;
+}
+
+.kpiCard span {
+  display: block;
+  font-size: 12px;
+  color: #4f5868;
+}
+
+.kpiCard strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+  color: #111823;
+}
+
+/* Channel distribution */
+.channelGrid {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.channelCard {
+  border: 1px solid #dce1ec;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fbfdff;
+  border-left: 3px solid #cfd5e4;
+}
+
+.channelCard[data-channel="rss"] {
+  border-left-color: #2563eb;
+}
+
+.channelCard[data-channel="twitter"] {
+  border-left-color: #111827;
+}
+
+.channelCard[data-channel="wechat"] {
+  border-left-color: #16a34a;
+}
+
+.channelCard[data-channel="github"] {
+  border-left-color: #6b7280;
+}
+
+.channelCard span {
+  display: block;
+  font-size: 12px;
+  color: #4f5868;
+}
+
+.channelCard strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+  color: #111823;
+}
+
+.channelPct {
+  display: inline;
+  font-size: 12px;
+  font-weight: 400;
+  color: #4f5868;
+  margin-left: 4px;
+}
+
+/* Stats two-col layout: source rank + daily trend */
+.statsColumns {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+
+/* Source ranking */
+.sourceRank {
+  border: 1px solid #dce1ec;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.sourceRank h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4f5868;
+}
+
+.sourceBarRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.sourceBarLabel {
+  flex-shrink: 0;
+  width: 140px;
+  font-size: 12px;
+  color: #283041;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceBarTrack {
+  flex: 1;
+  height: 16px;
+  background: #eef1f6;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.sourceBarFill {
+  height: 100%;
+  border-radius: 4px;
+  background: #3b82f6;
+  min-width: 2px;
+}
+
+.sourceBarFillHigh {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 4px;
+  background: #16a34a;
+}
+
+.sourceBarCount {
+  flex-shrink: 0;
+  width: 60px;
+  font-size: 12px;
+  color: #4f5868;
+  text-align: right;
+}
+
+/* Daily trend chart */
+.trendChart {
+  border: 1px solid #dce1ec;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.trendChart h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4f5868;
+}
+
+.trendSvg {
+  width: 100%;
+  display: block;
+}
+
+/* Type distribution */
+.typeGrid {
+  margin-top: 12px;
+  border: 1px solid #dce1ec;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.typeGrid h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4f5868;
+}
+
+.typeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.typeLabel {
+  flex-shrink: 0;
+  width: 100px;
+  font-size: 12px;
+  color: #283041;
+}
+
+.typeBarTrack {
+  flex: 1;
+  height: 14px;
+  background: #eef1f6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.typeBarFill {
+  height: 100%;
+  border-radius: 4px;
+  background: #8b5cf6;
+  min-width: 2px;
+}
+
+.typeCount {
+  flex-shrink: 0;
+  width: 40px;
+  font-size: 12px;
+  color: #4f5868;
+  text-align: right;
+}
+
+/* ── Filter bar ─────────────────────────────────────── */
+
 .filters {
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 10px;
   padding: 14px;
   border: 1px solid #d9deea;
@@ -189,6 +449,12 @@
   background: #fbfcff;
 }
 
+.filtersActions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+
 .filters button {
   height: 34px;
   align-self: end;
@@ -199,11 +465,14 @@
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
+  padding: 0 16px;
 }
 
 .filters button:hover {
   background: #1f51b6;
 }
+
+/* ── Article list & cards ───────────────────────────── */
 
 .list {
   margin-top: 16px;
@@ -227,7 +496,7 @@
 
 .cardHead h2 {
   margin: 0;
-  font-size: clamp(18px, 2vw, 23px);
+  font-size: clamp(16px, 2vw, 20px);
   line-height: 1.3;
   letter-spacing: -0.012em;
 }
@@ -251,6 +520,7 @@
   height: 24px;
   border-radius: 999px;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .badgeHigh {
@@ -265,41 +535,82 @@
   background: #fff8e6;
 }
 
-.row {
-  margin: 8px 0 0;
+/* Card meta line: source, channel, date, score */
+.cardMeta {
+  margin: 6px 0 0;
   font-size: 13px;
   line-height: 1.55;
-  color: #283041;
+  color: #4f5868;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
 }
 
-.row strong {
+.channelBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.channelBadge[data-channel="rss"] {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.channelBadge[data-channel="twitter"] {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.channelBadge[data-channel="wechat"] {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.channelBadge[data-channel="github"] {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.cardMetaScore {
+  font-weight: 700;
   color: #111823;
 }
 
-.summary,
-.reason,
-.action {
-  margin: 8px 0 0;
-  font-size: 14px;
-  line-height: 1.6;
+.cardMetaWorth {
+  font-weight: 600;
+}
+
+.worthMust {
+  color: #09684a;
+}
+
+.worthRead {
+  color: #2563eb;
+}
+
+.worthSkip {
+  color: #9ca3af;
 }
 
 .summary {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
   color: #111823;
 }
 
-.reason {
-  color: #3a4458;
-}
-
-.action {
-  color: #203f79;
-}
-
 .feedbackBar {
-  margin-top: 12px;
+  margin-top: 10px;
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 .feedbackBar form {
@@ -308,11 +619,11 @@
 
 .goodBtn,
 .badBtn {
-  height: 32px;
-  min-width: 68px;
+  height: 30px;
+  min-width: 60px;
   border-radius: 8px;
   border: 1px solid transparent;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -337,6 +648,68 @@
   background: #ffdfe1;
 }
 
+.feedbackInfo {
+  font-size: 11px;
+  color: #9098a8;
+}
+
+/* Collapsible details */
+.cardDetails {
+  margin-top: 8px;
+  border-top: 1px solid #eef1f6;
+  padding-top: 4px;
+}
+
+.detailsToggle {
+  font-size: 12px;
+  color: #4f5868;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+  list-style: none;
+}
+
+.detailsToggle::-webkit-details-marker {
+  display: none;
+}
+
+.detailsToggle::before {
+  content: "展开详情 ▸";
+}
+
+.cardDetails[open] > .detailsToggle::before {
+  content: "收起详情 ▾";
+}
+
+.detailsBody {
+  margin-top: 6px;
+}
+
+.row {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #283041;
+}
+
+.row strong {
+  color: #111823;
+}
+
+.reason {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #3a4458;
+}
+
+.action {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #203f79;
+}
+
 .empty {
   margin: 4px 0;
   padding: 18px;
@@ -346,6 +719,8 @@
   font-size: 14px;
   color: #4f5868;
 }
+
+/* ── Pagination ─────────────────────────────────────── */
 
 .pager {
   margin-top: 16px;
@@ -378,7 +753,8 @@
   background: #f6f7fb;
 }
 
-/* Article title button (styled as link) */
+/* ── Article title button (styled as link) ──────────── */
+
 .articleTitleBtn {
   all: unset;
   cursor: pointer;
@@ -390,7 +766,8 @@
   text-decoration: underline;
 }
 
-/* Drawer overlay + panel */
+/* ── Drawer overlay + panel ─────────────────────────── */
+
 .overlay {
   position: fixed;
   inset: 0;
@@ -549,6 +926,8 @@
   padding-left: 1.5em;
 }
 
+/* ── Responsive ─────────────────────────────────────── */
+
 @media (max-width: 1100px) {
   .aiStatsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -556,6 +935,18 @@
 
   .filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .channelGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .statsColumns {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -584,7 +975,23 @@
     grid-template-columns: 1fr;
   }
 
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .channelGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .statsColumns {
+    grid-template-columns: 1fr;
+  }
+
   .card {
     padding: 12px;
+  }
+
+  .sourceBarLabel {
+    width: 100px;
   }
 }

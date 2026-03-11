@@ -114,6 +114,17 @@ function collectEntryCandidateLinks(item: Parser.Item): string[] {
   return links;
 }
 
+const MEDIA_EXT_RE = /\.(?:jpe?g|png|gif|webp|svg|ico|bmp|avif|mp4|mp3|wav|ogg|webm|pdf)(?:[?#]|$)/i;
+
+function isMediaUrl(value: string): boolean {
+  try {
+    const pathname = new URL(value.trim()).pathname;
+    return MEDIA_EXT_RE.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
 function isExternalLink(value: string): boolean {
   try {
     const parsed = new URL(value.trim());
@@ -134,7 +145,7 @@ function entryHasExternalLink(item: Parser.Item): boolean {
 
 function selectInfoUrl(item: Parser.Item, fallbackUrl: string): string {
   for (const link of collectEntryCandidateLinks(item)) {
-    if (isExternalLink(link)) {
+    if (isExternalLink(link) && !isMediaUrl(link)) {
       return link;
     }
   }

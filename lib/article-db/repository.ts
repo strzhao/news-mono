@@ -60,7 +60,7 @@ function toHost(rawUrl: string): string {
 }
 
 function toCanonicalUrl(article: Article): string {
-  const base = String(article.infoUrl || article.url || "").trim();
+  const base = String(article.url || article.infoUrl || "").trim();
   return normalizeUrl(base);
 }
 
@@ -1468,7 +1468,7 @@ function rowToHighQualityItem(row: Record<string, unknown>, qualityTier: Quality
   return {
     article_id: String(row.article_id || ""),
     title: String(row.title || ""),
-    url: String(row.info_url || row.original_url || ""),
+    url: String(row.original_url || row.info_url || ""),
     original_url: String(row.original_url || ""),
     summary: String(row.one_line_summary || row.lead_paragraph || row.summary_raw || "").trim(),
     image_url: String(row.image_url || ""),

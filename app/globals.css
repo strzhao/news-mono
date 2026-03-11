@@ -1,14 +1,27 @@
 :root {
-  --bg: #f5f5f7;
-  --panel: #ffffff;
-  --ink: #111111;
-  --ink-soft: #424245;
-  --muted: #6e6e73;
-  --line: #d2d2d7;
-  --line-soft: #e6e6eb;
-  --accent: #0071e3;
-  --accent-hover: #0062c4;
-  --danger: #b42318;
+  /* Sage Design System */
+  --ink:          #1A1A18;
+  --paper:        #F7F6F1;
+  --mist:         #EBEBEA;
+  --smoke:        #8F8F8D;
+  --charcoal:     #595957;
+  --sage:         #3A7D68;
+  --sage-light:   #52A688;
+  --sage-mist:    #E8F2EE;
+  --amber:        #D4920A;
+  --vermillion:   #D94F3D;
+  --sky:          #3B87CC;
+
+  /* Semantic aliases (backward compat) */
+  --bg:           var(--paper);
+  --panel:        #ffffff;
+  --ink-soft:     var(--charcoal);
+  --muted:        var(--smoke);
+  --line:         var(--mist);
+  --line-soft:    #f0f0ee;
+  --accent:       var(--sage);
+  --accent-hover: var(--sage-light);
+  --danger:       var(--vermillion);
 }
 
 * {
@@ -22,7 +35,7 @@ body {
 }
 
 body {
-  background: linear-gradient(180deg, #fbfbfd 0%, var(--bg) 34%, var(--bg) 100%);
+  background: var(--paper);
   color: var(--ink);
   font-family: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
   line-height: 1.55;

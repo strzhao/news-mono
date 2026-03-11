@@ -1,4 +1,5 @@
-// Extraction Worker — polls article-db for pending tasks and processes them.
+// Extraction Worker — polls article-db for pending tasks and processes them,
+// and optionally starts an HTTP server for browser-based content extraction.
 //
 // Prerequisites:
 //   - yt-dlp installed (brew install yt-dlp / pip install yt-dlp)
@@ -6,8 +7,10 @@
 //   - Environment variables: ARTICLE_DB_BASE_URL, ARTICLE_DB_API_TOKEN, BLOB_READ_WRITE_TOKEN
 //
 // Usage:
-//   npm start          # run once (process all pending tasks, then exit)
-//   npm run dev        # watch mode with auto-reload
+//   npm start              # run once (process all pending tasks, then exit)
+//   npm run dev            # watch mode with auto-reload
+//   npm run server         # start browser extract HTTP server only
+//   npm run server-poll    # start HTTP server + continuous polling
 //
 // For continuous polling, use a cron job or process manager:
 //   crontab: every-5-min cd /path/to/extraction-worker && npm start
@@ -26,7 +29,9 @@ import { extractYouTube } from "./extractors/youtube.js";
 import { extractBilibili } from "./extractors/bilibili.js";
 import { extractXiaohongshu } from "./extractors/xiaohongshu.js";
 import { extractInstagram } from "./extractors/instagram.js";
+import { startServer } from "./server.js";
 
+const SERVER_MODE = process.argv.includes("--server");
 const POLL_MODE = process.argv.includes("--poll");
 const POLL_INTERVAL_MS = 30_000;
 
@@ -93,13 +98,27 @@ async function runOnce(): Promise<number> {
 }
 
 async function main(): Promise<void> {
+  const modes: string[] = [];
+  if (SERVER_MODE) modes.push("HTTP server");
+  if (POLL_MODE) modes.push("continuous polling");
+  if (!modes.length) modes.push("single run");
+
   console.log("Extraction Worker started.");
   console.log(`  ARTICLE_DB_BASE_URL: ${process.env.ARTICLE_DB_BASE_URL || "(not set)"}`);
-  console.log(`  Mode: ${POLL_MODE ? "continuous polling" : "single run"}`);
+  console.log(`  Mode: ${modes.join(" + ")}`);
 
-  if (!process.env.ARTICLE_DB_BASE_URL) {
-    console.error("Error: ARTICLE_DB_BASE_URL is required.");
-    process.exit(1);
+  // Start HTTP server if requested (does not block)
+  if (SERVER_MODE) {
+    startServer();
+  }
+
+  // Task polling requires ARTICLE_DB_BASE_URL
+  if (POLL_MODE || !SERVER_MODE) {
+    if (!process.env.ARTICLE_DB_BASE_URL) {
+      console.error("Error: ARTICLE_DB_BASE_URL is required for task polling.");
+      if (!SERVER_MODE) process.exit(1);
+      return;
+    }
   }
 
   if (POLL_MODE) {
@@ -108,10 +127,11 @@ async function main(): Promise<void> {
       await runOnce();
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
-  } else {
+  } else if (!SERVER_MODE) {
     // Single run mode (for cron jobs)
     await runOnce();
   }
+  // If SERVER_MODE only, main() returns and the HTTP server keeps the process alive
 }
 
 main().catch((error) => {

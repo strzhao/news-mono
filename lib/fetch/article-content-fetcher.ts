@@ -1,4 +1,5 @@
 import { normalizeUrl } from "@/lib/domain/tracker-common";
+import { fetchViaBrowser } from "./browser-extract-client";
 
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_MAX_HTML_BYTES = 1_500_000;
@@ -291,4 +292,31 @@ export async function fetchArticleContent(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Smart content fetcher: tries browser extraction first (if configured),
+ * then falls back to simple HTTP fetch.
+ */
+export async function fetchArticleContentSmart(
+  rawUrl: string,
+  options: FetchArticleContentOptions = {},
+): Promise<ArticleContentPayload> {
+  // Try browser extraction if service is configured
+  if (process.env.BROWSER_EXTRACT_URL) {
+    try {
+      return await fetchViaBrowser(rawUrl, {
+        timeoutMs: options.timeoutMs,
+        maxTextChars: options.maxTextChars,
+        maxImages: options.maxImages,
+      });
+    } catch (err) {
+      console.warn(
+        `[fetchSmart] Browser extract failed for ${rawUrl}, falling back to fetch: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  }
+
+  // Fallback to simple HTTP fetch
+  return fetchArticleContent(rawUrl, options);
 }

@@ -1,6 +1,6 @@
 import { loadArticleTypes, loadSources } from "@/lib/config-loader";
 import { Article, DedupeStats } from "@/lib/domain/models";
-import { fetchArticleContent } from "@/lib/fetch/article-content-fetcher";
+import { fetchArticleContent, fetchArticleContentSmart } from "@/lib/fetch/article-content-fetcher";
 import { fetchArticles } from "@/lib/fetch/rss-fetcher";
 import { DeepSeekClient } from "@/lib/llm/deepseek-client";
 import { ArticleEvaluator, type ArticleEvalTelemetry } from "@/lib/llm/article-evaluator";
@@ -273,7 +273,7 @@ async function crawlAndPersistHighQualityContent(params: {
       stats.attempted += 1;
 
       try {
-        const content = await fetchArticleContent(target.sourceUrl, {
+        const content = await fetchArticleContentSmart(target.sourceUrl, {
           timeoutMs: params.timeoutMs,
           maxHtmlBytes: params.maxHtmlBytes,
           maxTextChars: params.maxTextChars,
@@ -488,7 +488,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
                 const idx = cursor++;
                 const article = needsPreCrawl[idx];
                 try {
-                  const content = await fetchArticleContent(article.url, {
+                  const content = await fetchArticleContentSmart(article.url, {
                     timeoutMs: preCrawlTimeoutMs,
                     maxTextChars: 2400,
                   });

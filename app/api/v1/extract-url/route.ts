@@ -6,7 +6,7 @@ import {
   type ExtractionTask,
   type ExtractedResource,
 } from "@/lib/domain/url-extraction-models";
-import { fetchArticleContent, extractRelatedImagesFromHtml } from "@/lib/fetch/article-content-fetcher";
+import { fetchArticleContentSmart, extractRelatedImagesFromHtml } from "@/lib/fetch/article-content-fetcher";
 import { extractTwitterContent } from "@/lib/fetch/twitter-extractor";
 import { enqueueExtractionTask, listPendingTasks, listUserTasks, saveCompletedTask } from "@/lib/infra/extraction-queue";
 import { jsonResponse } from "@/lib/infra/route-utils";
@@ -53,7 +53,7 @@ function extractTitle(html: string): string {
 }
 
 async function extractWebpage(url: string, taskId: string): Promise<ExtractionTask> {
-  const content = await fetchArticleContent(url, { timeoutMs: 15_000 });
+  const content = await fetchArticleContentSmart(url, { timeoutMs: 15_000 });
 
   const resources: ExtractedResource[] = [];
 
@@ -137,8 +137,9 @@ export async function POST(request: Request): Promise<Response> {
     const platform = detectPlatform(url);
 
     // Webpage and Twitter can be extracted directly on Vercel
-    if (platform === "webpage") {
+    if (platform === "webpage" || platform === "wechat") {
       const task = await extractWebpage(url, taskId);
+      task.platform = platform;
       task.user_id = userId;
       const redis = buildUpstashClientOrNone();
       if (redis && userId) {

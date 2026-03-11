@@ -1,4 +1,4 @@
-export type ExtractionPlatform = "youtube" | "bilibili" | "twitter" | "xiaohongshu" | "instagram" | "webpage" | "unknown";
+export type ExtractionPlatform = "youtube" | "bilibili" | "twitter" | "xiaohongshu" | "instagram" | "wechat" | "webpage" | "unknown";
 
 export type ExtractionStatus = "pending" | "processing" | "completed" | "failed";
 

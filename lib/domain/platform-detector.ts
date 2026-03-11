@@ -6,6 +6,7 @@ const PLATFORM_RULES: Array<{ hosts: string[]; platform: ExtractionPlatform }> =
   { hosts: ["twitter.com", "www.twitter.com", "x.com", "www.x.com", "mobile.twitter.com"], platform: "twitter" },
   { hosts: ["xiaohongshu.com", "www.xiaohongshu.com", "xhslink.com"], platform: "xiaohongshu" },
   { hosts: ["instagram.com", "www.instagram.com"], platform: "instagram" },
+  { hosts: ["mp.weixin.qq.com"], platform: "wechat" },
 ];
 
 export function detectPlatform(url: string): ExtractionPlatform {

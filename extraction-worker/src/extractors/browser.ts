@@ -9,6 +9,8 @@
  * service for Vercel-side callers (pre-crawl, extract-url API).
  */
 import { chromium, type Browser, type Page } from "playwright";
+import { createHash } from "node:crypto";
+import { uploadBufferToBlob } from "../upload.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -157,6 +159,128 @@ function htmlToText(html: string, maxChars: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// WeChat image download & Blob upload
+// ---------------------------------------------------------------------------
+
+const WECHAT_IMG_CONCURRENCY = 5;
+const WECHAT_IMG_TIMEOUT_MS = 15_000;
+
+function isWechatUrl(url: string): boolean {
+  return url.includes("mp.weixin.qq.com");
+}
+
+function isWechatImageUrl(url: string): boolean {
+  return url.includes("mmbiz.qpic.cn") || url.includes("mmbiz.qlogo.cn");
+}
+
+function guessWechatImageExt(url: string, contentType?: string): string {
+  if (contentType?.includes("png")) return ".png";
+  if (contentType?.includes("gif")) return ".gif";
+  if (contentType?.includes("webp")) return ".webp";
+  if (url.includes("wx_fmt=png")) return ".png";
+  if (url.includes("wx_fmt=gif")) return ".gif";
+  if (url.includes("wx_fmt=webp")) return ".webp";
+  return ".jpg";
+}
+
+async function downloadWechatImage(imageUrl: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), WECHAT_IMG_TIMEOUT_MS);
+    const response = await fetch(imageUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Referer: "https://mp.weixin.qq.com/",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    return { buffer: Buffer.from(await response.arrayBuffer()), contentType };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Download WeChat images and upload to Vercel Blob, then replace URLs in HTML and images list.
+ */
+async function replaceWechatImages(
+  html: string,
+  images: Array<{ url: string; alt: string }>,
+  sourceUrl: string,
+): Promise<{ html: string; images: Array<{ url: string; alt: string }> }> {
+  // Collect all unique mmbiz URLs from both HTML and images list
+  const urlSet = new Set<string>();
+  const imgSrcRe = /(?:src|data-src|data-original)\s*=\s*["']([^"']*mmbiz\.qpic\.cn[^"']*)["']/gi;
+  let match: RegExpExecArray | null = null;
+  while ((match = imgSrcRe.exec(html)) !== null) {
+    urlSet.add(match[1]);
+  }
+  for (const img of images) {
+    if (isWechatImageUrl(img.url)) urlSet.add(img.url);
+  }
+
+  if (urlSet.size === 0) return { html, images };
+
+  const allUrls = Array.from(urlSet);
+  const urlHash = createHash("md5").update(sourceUrl).digest("hex").slice(0, 12);
+  const urlMap = new Map<string, string>(); // original -> blob URL
+
+  // Download & upload in batches
+  for (let i = 0; i < allUrls.length; i += WECHAT_IMG_CONCURRENCY) {
+    const batch = allUrls.slice(i, i + WECHAT_IMG_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map(async (originalUrl, batchIdx) => {
+        const idx = i + batchIdx;
+        const result = await downloadWechatImage(originalUrl);
+        if (!result || result.buffer.length < 100) return null;
+        const ext = guessWechatImageExt(originalUrl, result.contentType);
+        try {
+          const uploaded = await uploadBufferToBlob(
+            `wechat-${urlHash}`,
+            result.buffer,
+            `img-${idx}${ext}`,
+            "images",
+          );
+          return { originalUrl, blobUrl: uploaded.url };
+        } catch (err) {
+          console.warn(`[browser] Failed to upload wechat image ${idx}: ${err instanceof Error ? err.message : err}`);
+          return null;
+        }
+      }),
+    );
+    for (const r of results) {
+      if (r) urlMap.set(r.originalUrl, r.blobUrl);
+    }
+  }
+
+  if (urlMap.size === 0) return { html, images };
+
+  console.log(`[browser] Replaced ${urlMap.size}/${allUrls.length} wechat images with Blob URLs`);
+
+  // Replace URLs in HTML (handle both raw and HTML-entity-encoded URLs)
+  let newHtml = html;
+  for (const [original, blob] of urlMap) {
+    newHtml = newHtml.split(original).join(blob);
+    // Also replace HTML-entity-encoded version (& → &amp;)
+    const encoded = original.replace(/&/g, "&amp;");
+    if (encoded !== original) {
+      newHtml = newHtml.split(encoded).join(blob);
+    }
+  }
+
+  // Replace URLs in images list
+  const newImages = images.map((img) => {
+    const blobUrl = urlMap.get(img.url);
+    return blobUrl ? { ...img, url: blobUrl } : img;
+  });
+
+  return { html: newHtml, images: newImages };
+}
+
+// ---------------------------------------------------------------------------
 // Core extraction
 // ---------------------------------------------------------------------------
 
@@ -294,13 +418,26 @@ export async function extractWithBrowser(
 
     await context.close();
 
+    // For WeChat articles, download images to Vercel Blob to bypass hotlink protection
+    let finalHtml = cleanHtml;
+    let finalImages = data.images || [];
+    if (isWechatUrl(url)) {
+      try {
+        const replaced = await replaceWechatImages(cleanHtml, data.images || [], url);
+        finalHtml = replaced.html;
+        finalImages = replaced.images;
+      } catch (err) {
+        console.warn(`[browser] WeChat image replacement failed, using originals: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
     return {
       source_url: url,
       resolved_url: data.resolvedUrl || url,
       title: data.title || "",
       text,
-      html: cleanHtml,
-      images: data.images || [],
+      html: finalHtml,
+      images: finalImages,
       author: data.author || "",
       published_at: data.published_at || "",
     };

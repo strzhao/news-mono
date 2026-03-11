@@ -4,6 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, us
 import type { ReactNode } from "react";
 import styles from "./page.module.css";
 
+function addNoReferrerToImages(html: string): string {
+  return html.replace(/<img\b/gi, '<img referrerpolicy="no-referrer"');
+}
+
 export interface ArticleContentData {
   title: string;
   content_full_html: string;
@@ -84,7 +88,7 @@ export function ArticleDrawerProvider({
       return (
         <article
           className={styles.drawerHtml}
-          dangerouslySetInnerHTML={{ __html: data.content_full_html }}
+          dangerouslySetInnerHTML={{ __html: addNoReferrerToImages(data.content_full_html) }}
         />
       );
     }

@@ -1,3 +1,4 @@
+import { authenticateArticleDbRequest } from "@/lib/article-db/auth";
 import { runIngestionWithResult } from "@/lib/article-db/ingestion-runner";
 import { jsonResponse } from "@/lib/infra/route-utils";
 
@@ -20,7 +21,7 @@ function boolFlag(raw: string): boolean {
   return ["1", "true", "yes", "on"].includes(String(raw || "").trim().toLowerCase());
 }
 
-function isAuthorized(request: Request, url: URL): boolean {
+function isAuthorized(request: Request, url: URL): boolean | "pending_jwt" {
   const cronSecret = String(process.env.CRON_SECRET || "").trim();
   if (!cronSecret) {
     return true;
@@ -29,7 +30,14 @@ function isAuthorized(request: Request, url: URL): boolean {
   if (authHeader === `Bearer ${cronSecret}`) {
     return true;
   }
-  return queryValue(url, "token") === cronSecret;
+  if (queryValue(url, "token") === cronSecret) {
+    return true;
+  }
+  // Fall through to JWT auth check
+  if (authHeader.startsWith("Bearer ")) {
+    return "pending_jwt";
+  }
+  return false;
 }
 
 function detectTriggerType(request: Request): TriggerType {
@@ -69,8 +77,15 @@ async function sleepMs(delayMs: number): Promise<void> {
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  if (!isAuthorized(request, url)) {
+  const authResult = isAuthorized(request, url);
+  if (authResult === false) {
     return jsonResponse(401, { ok: false, error: "Unauthorized" }, true);
+  }
+  if (authResult === "pending_jwt") {
+    const jwtResult = await authenticateArticleDbRequest(request);
+    if (!jwtResult.ok) {
+      return jsonResponse(401, { ok: false, error: "Unauthorized" }, true);
+    }
   }
   const jitter = jitterDelayMs(request, url);
   await sleepMs(jitter.delayMs);

@@ -1,7 +1,26 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { Rss, Sparkles, Tags, Newspaper } from "lucide-react";
+import { authBridgeEnabled } from "@/lib/article-db/auth";
+import {
+  GATEWAY_SESSION_COOKIE_NAME,
+  verifyGatewaySessionCookieValue,
+} from "@/lib/article-db/auth-gateway-session";
 import styles from "./page.module.css";
 
-export default function HomePage() {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  if (authBridgeEnabled()) {
+    const cookieStore = await cookies();
+    const gatewayRaw = String(cookieStore.get(GATEWAY_SESSION_COOKIE_NAME)?.value || "").trim();
+    const gatewaySession = verifyGatewaySessionCookieValue(gatewayRaw);
+    if (!gatewaySession) {
+      redirect(`/auth/start?next=${encodeURIComponent("/")}`);
+    }
+  }
+
   return (
     <main className={styles.page}>
       {/* ── Nav ── */}

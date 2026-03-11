@@ -1,0 +1,192 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 860px;
+  width: calc(100% - 48px);
+  margin: 0 auto;
+  padding: 20px 0;
+}
+
+.brand {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.navLinks {
+  display: flex;
+  gap: 10px;
+}
+
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: 1.5px solid var(--sage);
+  background: var(--sage);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 100ms ease;
+}
+
+.copyBtn:hover {
+  opacity: 0.9;
+}
+
+.main {
+  max-width: 860px;
+  width: calc(100% - 48px);
+  margin: 0 auto;
+  padding-bottom: 80px;
+}
+
+.hero {
+  padding: 48px 0 32px;
+}
+
+.title {
+  font-size: clamp(28px, 4vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 16px;
+  color: var(--charcoal);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.section {
+  margin-top: 40px;
+}
+
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+
+.versionTag {
+  font-size: 13px;
+  color: var(--smoke);
+  margin: 0 0 16px;
+}
+
+.codeBlock {
+  background: var(--mist);
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: auto;
+  color: var(--ink);
+  margin: 0;
+}
+
+.commandList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.commandCard {
+  background: var(--mist);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.commandHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.commandName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sage);
+}
+
+.commandMethod {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--sage-mist);
+  color: var(--sage);
+  text-transform: uppercase;
+}
+
+.commandDesc {
+  font-size: 14px;
+  color: var(--charcoal);
+  margin: 0 0 10px;
+}
+
+.commandUsage {
+  font-size: 13px;
+  background: var(--paper);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 0 0 10px;
+  color: var(--ink);
+  overflow-x: auto;
+}
+
+.paramGroup {
+  margin-top: 10px;
+}
+
+.paramLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--smoke);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.paramRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.paramName {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.paramDesc {
+  color: var(--charcoal);
+}
+
+.paramRequired {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--amber);
+  white-space: nowrap;
+}

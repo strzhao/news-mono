@@ -11,6 +11,7 @@ import type {
   ArticleContentPayload,
   ArticleImageResource,
 } from "./article-content-fetcher";
+import { retryWithBackoff } from "./retry";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -49,58 +50,63 @@ export async function fetchViaBrowser(
   const authToken = process.env.BROWSER_EXTRACT_AUTH_TOKEN || "";
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs + 5_000);
+  return retryWithBackoff(
+    async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs + 5_000);
 
-  try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
-    }
+      try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (authToken) {
+          headers.Authorization = `Bearer ${authToken}`;
+        }
 
-    const response = await fetch(`${serviceUrl}/extract`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        url,
-        timeout_ms: timeoutMs,
-        max_text_chars: options?.maxTextChars,
-        max_images: options?.maxImages,
-      }),
-      signal: controller.signal,
-    });
+        const response = await fetch(`${serviceUrl}/extract`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            url,
+            timeout_ms: timeoutMs,
+            max_text_chars: options?.maxTextChars,
+            max_images: options?.maxImages,
+          }),
+          signal: controller.signal,
+        });
 
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(
-        `Browser extract service returned ${response.status}: ${text.slice(0, 200)}`,
-      );
-    }
+        if (!response.ok) {
+          const text = await response.text().catch(() => "");
+          throw new Error(
+            `Browser extract service returned ${response.status}: ${text.slice(0, 200)}`,
+          );
+        }
 
-    const result = (await response.json()) as BrowserServiceResponse;
-    if (!result.ok || !result.data) {
-      throw new Error(
-        `Browser extract failed: ${result.error || "unknown error"}`,
-      );
-    }
+        const result = (await response.json()) as BrowserServiceResponse;
+        if (!result.ok || !result.data) {
+          throw new Error(
+            `Browser extract failed: ${result.error || "unknown error"}`,
+          );
+        }
 
-    const images: ArticleImageResource[] = (result.data.images || []).map(
-      (img) => ({
-        url: img.url,
-        alt: img.alt || "",
-      }),
-    );
+        const images: ArticleImageResource[] = (result.data.images || []).map(
+          (img) => ({
+            url: img.url,
+            alt: img.alt || "",
+          }),
+        );
 
-    return {
-      sourceUrl: result.data.source_url || url,
-      resolvedUrl: result.data.resolved_url || url,
-      html: result.data.html || "",
-      text: result.data.text || "",
-      images,
-    };
-  } finally {
-    clearTimeout(timer);
-  }
+        return {
+          sourceUrl: result.data.source_url || url,
+          resolvedUrl: result.data.resolved_url || url,
+          html: result.data.html || "",
+          text: result.data.text || "",
+          images,
+        };
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+    { maxRetries: 1, baseDelayMs: 2000 },
+  );
 }

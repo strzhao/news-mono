@@ -1,5 +1,8 @@
 import { normalizeUrl } from "@/lib/domain/tracker-common";
 import { fetchViaBrowser } from "./browser-extract-client";
+import { buildBrowserHeaders } from "./headers";
+import { retryWithBackoff } from "./retry";
+import { FetchError, classifyHttpStatus, extractDomain } from "./errors";
 
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_MAX_HTML_BYTES = 1_500_000;
@@ -249,23 +252,35 @@ export async function fetchArticleContent(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetchImpl(normalizedUrl, {
-      method: "GET",
-      redirect: "follow",
-      headers: {
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "User-Agent": "Mozilla/5.0 (compatible; AINewsBot/1.0; +https://ai-news.stringzhao.life)",
-      },
-      signal: controller.signal,
-    });
+    const response = await retryWithBackoff(
+      async () => {
+        const res = await fetchImpl(normalizedUrl, {
+          method: "GET",
+          redirect: "follow",
+          headers: buildBrowserHeaders(),
+          signal: controller.signal,
+        });
 
-    if (!response.ok) {
-      throw new Error(`Fetch failed: ${response.status}`);
-    }
+        if (!res.ok) {
+          const domain = extractDomain(normalizedUrl);
+          throw new FetchError(`Fetch failed: ${res.status}`, {
+            code: classifyHttpStatus(res.status),
+            statusCode: res.status,
+            domain,
+          });
+        }
+
+        return res;
+      },
+      { maxRetries: 2, baseDelayMs: 1000 },
+    );
 
     const contentType = String(response.headers.get("content-type") || "").toLowerCase();
     if (contentType && !contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
-      throw new Error(`Unsupported content-type: ${contentType}`);
+      throw new FetchError(`Unsupported content-type: ${contentType}`, {
+        code: "content_type_mismatch",
+        domain: extractDomain(normalizedUrl),
+      });
     }
 
     const responseUrl = String(response.url || normalizedUrl).trim() || normalizedUrl;

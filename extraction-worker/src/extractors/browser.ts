@@ -281,6 +281,31 @@ async function replaceWechatImages(
 }
 
 // ---------------------------------------------------------------------------
+// Session-stable fingerprint — generated once per process, reused across pages
+// ---------------------------------------------------------------------------
+
+const VIEWPORTS = [
+  { width: 1440, height: 900 },
+  { width: 1920, height: 1080 },
+  { width: 1536, height: 864 },
+  { width: 1366, height: 768 },
+];
+
+const UA_PROFILES = [
+  {
+    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    secChUa: '"Chromium";v="133", "Google Chrome";v="133", "Not?A_Brand";v="99"',
+  },
+  {
+    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+    secChUa: '"Chromium";v="132", "Google Chrome";v="132", "Not?A_Brand";v="99"',
+  },
+];
+
+const sessionUA = UA_PROFILES[Math.floor(Math.random() * UA_PROFILES.length)];
+const sessionViewport = VIEWPORTS[Math.floor(Math.random() * VIEWPORTS.length)];
+
+// ---------------------------------------------------------------------------
 // Core extraction
 // ---------------------------------------------------------------------------
 
@@ -298,17 +323,80 @@ export async function extractWithBrowser(
   let page: Page | null = null;
   try {
     const context = await browser.newContext({
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      userAgent: sessionUA.ua,
       locale: "zh-CN",
-      viewport: { width: 1440, height: 900 },
+      viewport: sessionViewport,
+      extraHTTPHeaders: {
+        "sec-ch-ua": sessionUA.secChUa,
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"macOS"',
+      },
     });
 
     page = await context.newPage();
 
-    // Anti-detection
+    // Comprehensive anti-detection script
     await page.addInitScript(() => {
+      // Hide webdriver flag
       Object.defineProperty(navigator, "webdriver", { get: () => false });
+
+      // Simulate Chrome plugins (default 5)
+      Object.defineProperty(navigator, "plugins", {
+        get: () => {
+          const plugins = [
+            { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer", description: "Portable Document Format" },
+            { name: "Chrome PDF Viewer", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai", description: "" },
+            { name: "Native Client", filename: "internal-nacl-plugin", description: "" },
+          ];
+          const arr = plugins.map((p) => {
+            const plugin = Object.create(Plugin.prototype);
+            Object.defineProperties(plugin, {
+              name: { get: () => p.name },
+              filename: { get: () => p.filename },
+              description: { get: () => p.description },
+              length: { get: () => 0 },
+            });
+            return plugin;
+          });
+          Object.setPrototypeOf(arr, PluginArray.prototype);
+          Object.defineProperty(arr, "length", { get: () => arr.length });
+          return arr;
+        },
+      });
+
+      // Set languages
+      Object.defineProperty(navigator, "languages", {
+        get: () => ["zh-CN", "zh", "en-US", "en"],
+      });
+
+      // Simulate window.chrome
+      if (!(window as any).chrome) {
+        (window as any).chrome = {};
+      }
+      (window as any).chrome.runtime = {};
+
+      // Permissions API — notifications denied
+      const originalQuery = Permissions.prototype.query;
+      Permissions.prototype.query = function (desc: PermissionDescriptor) {
+        if (desc.name === "notifications") {
+          return Promise.resolve({ state: "denied", onchange: null } as PermissionStatus);
+        }
+        return originalQuery.call(this, desc);
+      };
+
+      // WebGL renderer spoofing
+      const getParameter = WebGLRenderingContext.prototype.getParameter;
+      WebGLRenderingContext.prototype.getParameter = function (param: number) {
+        if (param === 37445) return "Google Inc. (Apple)";
+        if (param === 37446) return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
+        return getParameter.call(this, param);
+      };
+      const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
+      WebGL2RenderingContext.prototype.getParameter = function (param: number) {
+        if (param === 37445) return "Google Inc. (Apple)";
+        if (param === 37446) return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
+        return getParameter2.call(this, param);
+      };
     });
 
     // Navigate

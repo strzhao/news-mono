@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import Parser from "rss-parser";
 import { Article, SourceConfig } from "@/lib/domain/models";
+import { gaussianJitter } from "./timing";
+import { retryWithBackoff } from "./retry";
 
 const TAG_RE = /<[^>]+>/g;
 const MULTISPACE_RE = /\s+/g;
@@ -22,28 +24,33 @@ const parser = new Parser({
 });
 
 async function fetchFeedWithTimeout(feedUrl: string, timeoutMs: number): Promise<Parser.Output<Parser.Item>> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return retryWithBackoff(
+    async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const response = await fetch(feedUrl, {
-      method: "GET",
-      redirect: "follow",
-      headers: {
-        Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
-      },
-      signal: controller.signal,
-    });
+      try {
+        const response = await fetch(feedUrl, {
+          method: "GET",
+          redirect: "follow",
+          headers: {
+            Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+          },
+          signal: controller.signal,
+        });
 
-    if (!response.ok) {
-      throw new Error(`RSS fetch failed: ${response.status}`);
-    }
+        if (!response.ok) {
+          throw new Error(`RSS fetch failed: ${response.status}`);
+        }
 
-    const xml = await response.text();
-    return await parser.parseString(xml);
-  } finally {
-    clearTimeout(timer);
-  }
+        const xml = await response.text();
+        return await parser.parseString(xml);
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+    { maxRetries: 1, baseDelayMs: 1000 },
+  );
 }
 
 function cleanHtmlText(value: string): string {
@@ -240,8 +247,8 @@ export async function fetchArticles(
       }
 
       if (timeoutSeconds > 0) {
-        // avoid burst to upstream feeds
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        // Gaussian jitter instead of fixed delay — more natural timing
+        await gaussianJitter(200, 80);
       }
     }
   }

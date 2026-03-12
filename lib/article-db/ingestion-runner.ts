@@ -7,6 +7,8 @@ import { ArticleEvaluator, type ArticleEvalTelemetry } from "@/lib/llm/article-e
 import { ArticleEvalCache } from "@/lib/cache/article-eval-cache";
 import { dedupeArticles } from "@/lib/process/dedupe";
 import { normalizeArticles } from "@/lib/process/normalize";
+import { readingPause } from "@/lib/fetch/timing";
+import { FetchError } from "@/lib/fetch/errors";
 import {
   countDailyAnalyzed,
   countDailyHighQuality,
@@ -225,6 +227,7 @@ interface HighQualityContentCrawlStats {
   fetched: number;
   failed: number;
   persisted: number;
+  fetch_error_codes: Record<string, number>;
 }
 
 async function crawlAndPersistHighQualityContent(params: {
@@ -241,6 +244,7 @@ async function crawlAndPersistHighQualityContent(params: {
     fetched: 0,
     failed: 0,
     persisted: 0,
+    fetch_error_codes: {},
   };
   if (!params.articleIds.length) {
     return stats;
@@ -295,6 +299,10 @@ async function crawlAndPersistHighQualityContent(params: {
         });
         stats.fetched += 1;
       } catch (error) {
+        // Track structured error codes
+        if (error instanceof FetchError) {
+          stats.fetch_error_codes[error.code] = (stats.fetch_error_codes[error.code] || 0) + 1;
+        }
         snapshots.push({
           article_id: target.articleId,
           source_url: target.sourceUrl,
@@ -306,6 +314,9 @@ async function crawlAndPersistHighQualityContent(params: {
         });
         stats.failed += 1;
       }
+
+      // Reading pause between crawls — mimics human browsing
+      await readingPause(0.05);
     }
   }
 
@@ -675,6 +686,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
                 fetched: 0,
                 failed: 0,
                 persisted: 0,
+                fetch_error_codes: {},
               };
 
         const summaryAutoGenEnabled = isEnabled("SUMMARY_AUTO_GENERATE", "true");
@@ -760,6 +772,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
           hq_content_crawl_fetched: contentCrawlStats.fetched,
           hq_content_crawl_failed: contentCrawlStats.failed,
           hq_content_crawl_persisted: contentCrawlStats.persisted,
+          hq_content_crawl_error_codes: contentCrawlStats.fetch_error_codes,
           summary_auto_generate_enabled: summaryAutoGenEnabled,
           summary_auto_attempted: summaryAutoStats.attempted,
           summary_auto_completed: summaryAutoStats.completed,

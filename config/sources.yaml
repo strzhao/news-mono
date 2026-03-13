@@ -39,6 +39,11 @@ sources:
     url: https://www.understandingai.org/feed
     source_type: rss
     source_weight: 0.85
+  - id: kenhuangus_substack
+    name: Ken Huang - Agentic AI
+    url: https://kenhuangus.substack.com/feed
+    source_type: rss
+    source_weight: 0.88
 
   # X/Twitter sources via self-hosted RSSHub.
   # Set RSSHUB_BASE_URL first, e.g. https://rsshub.example.com
@@ -222,6 +227,12 @@ sources:
   - id: x_voidzerodev
     name: VoidZero（X）
     rsshub_route: /twitter/user/voidzerodev
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_garrytan
+    name: Garry Tan（X）
+    rsshub_route: /twitter/user/garrytan
     source_type: twitter
 
     source_weight: 1.08

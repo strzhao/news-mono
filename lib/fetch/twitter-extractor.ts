@@ -64,9 +64,7 @@ export async function extractTwitterContent(
       });
     }
   } else {
-    // Fallback: just return the URL as metadata
-    metadata.title = `@${tweetInfo.username} tweet ${tweetInfo.tweetId}`;
-    metadata.description = "无法通过 RSSHub 获取推文内容。可能推文较旧或 RSSHub 缓存已过期。";
+    throw new Error("无法通过 RSSHub 获取推文内容。可能推文较旧或 RSSHub 缓存已过期。");
   }
 
   return { resources, metadata };

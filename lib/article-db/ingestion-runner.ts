@@ -356,7 +356,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
   const fetchBudget = boundedInt(String(process.env.SOURCE_FETCH_BUDGET || "0"), 0, 0, 2000);
   const maxEvalArticlesConfig = boundedInt(String(process.env.MAX_EVAL_ARTICLES || "120"), 120, 1, 200);
   const fetchTimeoutSeconds = boundedFloat(String(process.env.RSS_FETCH_TIMEOUT_SECONDS || "12"), 12, 2, 30);
-  const fetchConcurrency = boundedInt(String(process.env.RSS_FETCH_CONCURRENCY || "6"), 6, 1, 12);
+  const fetchConcurrency = boundedInt(String(process.env.RSS_FETCH_CONCURRENCY || "8"), 8, 1, 12);
   const mergeDailySnapshot = isEnabled("INGESTION_DAILY_MERGE_MODE", "true");
   const staleRunSeconds = boundedInt(String(process.env.INGESTION_RUN_STALE_SECONDS || "900"), 900, 120, 86_400);
   const heartbeatIntervalMs = boundedInt(String(process.env.INGESTION_HEARTBEAT_INTERVAL_MS || "15000"), 15_000, 5_000, 60_000);
@@ -387,7 +387,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
     30,
   );
   const crawlHighQualityContentEnabled = isEnabled("HQ_CONTENT_CRAWL_ENABLED", "true");
-  const crawlHighQualityContentLimit = boundedInt(String(process.env.HQ_CONTENT_CRAWL_LIMIT || "20"), 20, 0, 200);
+  const crawlHighQualityContentLimit = boundedInt(String(process.env.HQ_CONTENT_CRAWL_LIMIT || "10"), 10, 0, 200);
   const crawlHighQualityContentConcurrency = boundedInt(
     String(process.env.HQ_CONTENT_CRAWL_CONCURRENCY || "3"),
     3,
@@ -395,8 +395,8 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
     8,
   );
   const crawlHighQualityContentTimeoutMs = boundedInt(
-    String(process.env.HQ_CONTENT_CRAWL_TIMEOUT_MS || "8000"),
-    8_000,
+    String(process.env.HQ_CONTENT_CRAWL_TIMEOUT_MS || "5000"),
+    5_000,
     500,
     30_000,
   );

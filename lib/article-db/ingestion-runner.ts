@@ -1,7 +1,7 @@
 import { loadArticleTypes, loadSources } from "@/lib/config-loader";
 import { Article, DedupeStats } from "@/lib/domain/models";
 import { fetchArticleContent, fetchArticleContentSmart } from "@/lib/fetch/article-content-fetcher";
-import { fetchArticles } from "@/lib/fetch/rss-fetcher";
+import { fetchArticles, type SourceFetchStat } from "@/lib/fetch/rss-fetcher";
 import { DeepSeekClient } from "@/lib/llm/deepseek-client";
 import { ArticleEvaluator, type ArticleEvalTelemetry } from "@/lib/llm/article-evaluator";
 import { ArticleEvalCache } from "@/lib/cache/article-eval-cache";
@@ -455,7 +455,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
         const sources = loadSources(options.sourcesConfig || undefined);
         await upsertSources(sources);
 
-        const fetched = await withTimeout(
+        const fetchResult = await withTimeout(
           "rss_fetch_stage",
           fetchStageTimeoutMs,
           fetchArticles(sources, {
@@ -466,6 +466,8 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             totalBudget: fetchBudget,
           }),
         );
+        const fetched = fetchResult.articles;
+        const sourceFetchStats = fetchResult.sourceStats;
         result.fetchedCount = fetched.length;
 
         const normalized = normalizeArticles(fetched);
@@ -521,6 +523,17 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
           }
         }
 
+        // Compute per-source fetch diagnostics (used in both early-return and full paths)
+        const sourceStatsEntries = Object.entries(sourceFetchStats);
+        const sourceFetchSuccessCount = sourceStatsEntries.filter(([, s]) => !s.error && s.fetched > 0).length;
+        const sourceFetchEmptyCount = sourceStatsEntries.filter(([, s]) => !s.error && s.fetched === 0).length;
+        const sourceFetchFailedEntries = sourceStatsEntries.filter(([, s]) => s.error);
+        const sourceFetchErrors: Record<string, string> = {};
+        for (const [id, stat] of sourceFetchFailedEntries.slice(0, 20)) {
+          sourceFetchErrors[id] = stat.error || "unknown";
+        }
+        const sourceFetchSkippedCount = sources.length - sourceStatsEntries.length;
+
         if (!evaluationPool.length) {
           let prunedByCurrentScore = 0;
           if (mergeDailySnapshot) {
@@ -558,6 +571,11 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             hq_content_crawl_fetched: 0,
             hq_content_crawl_failed: 0,
             hq_content_crawl_persisted: 0,
+            source_fetch_success_count: sourceFetchSuccessCount,
+            source_fetch_empty_count: sourceFetchEmptyCount,
+            source_fetch_failed_count: sourceFetchFailedEntries.length,
+            source_fetch_skipped_count: sourceFetchSkippedCount,
+            source_fetch_errors: sourceFetchErrors,
           };
 
           await finishIngestionRun({
@@ -719,6 +737,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
         const selectedTotal = await countDailyHighQuality(reportDate);
         const analyzedTotal = await countDailyAnalyzed(reportDate);
         result.selectedCount = selectedTotal;
+
         result.ok = true;
         result.stats = {
           source_count: sources.length,
@@ -777,6 +796,11 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
           summary_auto_attempted: summaryAutoStats.attempted,
           summary_auto_completed: summaryAutoStats.completed,
           summary_auto_failed: summaryAutoStats.failed,
+          source_fetch_success_count: sourceFetchSuccessCount,
+          source_fetch_empty_count: sourceFetchEmptyCount,
+          source_fetch_failed_count: sourceFetchFailedEntries.length,
+          source_fetch_skipped_count: sourceFetchSkippedCount,
+          source_fetch_errors: sourceFetchErrors,
         };
 
         await finishIngestionRun({

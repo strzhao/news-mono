@@ -57,16 +57,16 @@ describe("rss fetcher", () => {
     }) as typeof fetch;
 
     const startedAt = Date.now();
-    const articles = await fetchArticles(
+    const result = await fetchArticles(
       [source("slow", "https://slow.example.com/rss"), source("fast", "https://fast.example.com/rss")],
       {
         timeoutSeconds: 1,
       },
     );
 
-    expect(articles).toHaveLength(1);
-    expect(articles[0].sourceId).toBe("fast");
-    expect(articles[0].title).toBe("Fast Article");
+    expect(result.articles).toHaveLength(1);
+    expect(result.articles[0].sourceId).toBe("fast");
+    expect(result.articles[0].title).toBe("Fast Article");
     expect(Date.now() - startedAt).toBeLessThan(5_000);
   });
 });

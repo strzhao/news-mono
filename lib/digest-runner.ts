@@ -321,10 +321,11 @@ export async function runDigestWithResult(options: RunDigestOptions = {}): Promi
   const defaultMaxEval = expandedDiscoveryModeEnabled() ? 120 : 60;
   const maxEvalArticles = Math.max(1, Number.parseInt(String(process.env.MAX_EVAL_ARTICLES || defaultMaxEval), 10) || defaultMaxEval);
 
-  const fetched = await fetchArticles(prioritizedSources, {
+  const fetchResult = await fetchArticles(prioritizedSources, {
     perSourceLimits,
     totalBudget: 0,
   });
+  const fetched = fetchResult.articles;
 
   const normalized = normalizeArticles(fetched);
   const dedupeResult = dedupeArticles(normalized, 0.93, true) as [any[], any];

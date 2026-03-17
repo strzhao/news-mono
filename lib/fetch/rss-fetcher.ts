@@ -159,6 +159,16 @@ function selectInfoUrl(item: Parser.Item, fallbackUrl: string): string {
   return fallbackUrl;
 }
 
+export interface SourceFetchStat {
+  fetched: number;
+  error?: string;
+}
+
+export interface FetchResult {
+  articles: Article[];
+  sourceStats: Record<string, SourceFetchStat>;
+}
+
 export async function fetchArticles(
   sources: SourceConfig[],
   options: {
@@ -169,7 +179,7 @@ export async function fetchArticles(
     perSourceLimits?: Record<string, number>;
     totalBudget?: number;
   } = {},
-): Promise<Article[]> {
+): Promise<FetchResult> {
   const timeoutSeconds = options.timeoutSeconds ?? 20;
   const timeoutMs = Math.max(1_000, Math.trunc(timeoutSeconds * 1_000));
   const totalTimeoutMs = Math.max(timeoutMs, Math.trunc((options.totalTimeoutSeconds ?? 120) * 1_000));
@@ -179,6 +189,7 @@ export async function fetchArticles(
   const totalBudget = options.totalBudget ?? 0;
 
   const articles: Article[] = [];
+  const sourceStats: Record<string, SourceFetchStat> = {};
   const deadline = Date.now() + totalTimeoutMs;
   let cursor = 0;
 
@@ -198,6 +209,7 @@ export async function fetchArticles(
       }
 
       const source = sources[index];
+      let sourceFetched = 0;
       try {
         const remainingMs = Math.max(1_000, deadline - Date.now());
         const feed = await fetchFeedWithTimeout(source.url, Math.min(timeoutMs, remainingMs));
@@ -206,9 +218,11 @@ export async function fetchArticles(
 
         for (const entry of entries) {
           if (Date.now() >= deadline) {
+            sourceStats[source.id] = { fetched: sourceFetched };
             return;
           }
           if (totalBudget > 0 && articles.length >= totalBudget) {
+            sourceStats[source.id] = { fetched: sourceFetched };
             return;
           }
           if (source.onlyExternalLinks && !entryHasExternalLink(entry)) {
@@ -241,9 +255,14 @@ export async function fetchArticles(
             primaryType: "",
             secondaryTypes: [],
           });
+          sourceFetched++;
         }
-      } catch {
-        // keep running if one source fails
+        sourceStats[source.id] = { fetched: sourceFetched };
+      } catch (err) {
+        sourceStats[source.id] = {
+          fetched: sourceFetched,
+          error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+        };
       }
 
       if (timeoutSeconds > 0) {
@@ -255,5 +274,5 @@ export async function fetchArticles(
 
   await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, sources.length)) }, () => worker()));
 
-  return articles;
+  return { articles, sourceStats };
 }

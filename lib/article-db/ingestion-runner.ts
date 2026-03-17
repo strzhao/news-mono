@@ -689,7 +689,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
                 fetch_error_codes: {},
               };
 
-        const summaryAutoGenEnabled = isEnabled("SUMMARY_AUTO_GENERATE", "true");
+        const summaryAutoGenEnabled = isEnabled("SUMMARY_AUTO_GENERATE", "false");
         const summaryAutoStats =
           summaryAutoGenEnabled && selectedRows.length
             ? await batchGenerateSummaries(selectedRows.map((item) => item.articleId))

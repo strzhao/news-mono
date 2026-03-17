@@ -576,6 +576,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             source_fetch_failed_count: sourceFetchFailedEntries.length,
             source_fetch_skipped_count: sourceFetchSkippedCount,
             source_fetch_errors: sourceFetchErrors,
+            source_fetch_details: Object.fromEntries(sourceStatsEntries.map(([id, s]) => [id, { fetched: s.fetched, ...(s.error ? { error: s.error } : {}) }])),
           };
 
           await finishIngestionRun({

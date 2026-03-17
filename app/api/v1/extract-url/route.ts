@@ -11,10 +11,32 @@ import { extractTwitterContent } from "@/lib/fetch/twitter-extractor";
 import { enqueueExtractionTask, listPendingTasks, listUserTasks, saveCompletedTask } from "@/lib/infra/extraction-queue";
 import { jsonResponse } from "@/lib/infra/route-utils";
 import { buildUpstashClientOrNone } from "@/lib/infra/upstash";
+import { generateArticleSummary } from "@/lib/llm/article-summary-generator";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 export const preferredRegion = ["sin1"];
+
+/** Generate AI summary for extracted content; returns markdown or undefined on failure. */
+async function tryGenerateAiSummary(task: ExtractionTask, extractedText?: string): Promise<string | undefined> {
+  const contentText = extractedText || task.metadata.description || "";
+  if (contentText.length < 50) return undefined;
+
+  try {
+    const result = await generateArticleSummary({
+      articleId: task.task_id,
+      title: task.metadata.title,
+      url: task.url,
+      contentFullText: contentText,
+      contentText: "",
+      summaryRaw: "",
+      leadParagraph: "",
+    });
+    return result.markdown;
+  } catch {
+    return undefined;
+  }
+}
 
 function generateTaskId(): string {
   return `ext_${Date.now()}_${crypto.randomBytes(6).toString("hex")}`;
@@ -52,7 +74,7 @@ function extractTitle(html: string): string {
   return titleMatch ? String(titleMatch[1] || "").trim() : "";
 }
 
-async function extractWebpage(url: string, taskId: string): Promise<ExtractionTask> {
+async function extractWebpage(url: string, taskId: string): Promise<ExtractionTask & { _extractedText?: string }> {
   const content = await fetchArticleContentSmart(url, { timeoutMs: 15_000 });
 
   const resources: ExtractedResource[] = [];
@@ -98,6 +120,7 @@ async function extractWebpage(url: string, taskId: string): Promise<ExtractionTa
     created_at: new Date().toISOString(),
     completed_at: new Date().toISOString(),
     blob_ttl_hours: DEFAULT_BLOB_TTL_HOURS,
+    _extractedText: content.text,
   };
 }
 
@@ -125,7 +148,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const body = (await request.json()) as { url?: string; blob_ttl_hours?: number; user_id?: string };
+    const body = (await request.json()) as { url?: string; blob_ttl_hours?: number; user_id?: string; ai_summary?: boolean };
     const url = String(body?.url || "").trim();
     if (!url || !isValidUrl(url)) {
       return jsonResponse(400, { ok: false, error: "invalid_url", message: "请提供有效的 URL" }, true);
@@ -133,6 +156,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const blobTtlHours = Math.max(1, Math.min(168, Number(body?.blob_ttl_hours) || DEFAULT_BLOB_TTL_HOURS));
     const userId = String(body?.user_id || "").trim();
+    const wantAiSummary = Boolean(body?.ai_summary);
     const taskId = generateTaskId();
     const platform = detectPlatform(url);
 
@@ -141,16 +165,24 @@ export async function POST(request: Request): Promise<Response> {
       const task = await extractWebpage(url, taskId);
       task.platform = platform;
       task.user_id = userId;
+      if (wantAiSummary) {
+        task.ai_summary = await tryGenerateAiSummary(task, task._extractedText);
+      }
+      // Strip internal field before saving / returning
+      const { _extractedText, ...cleanTask } = task;
       const redis = buildUpstashClientOrNone();
       if (redis && userId) {
-        await saveCompletedTask(redis, task).catch(() => {});
+        await saveCompletedTask(redis, cleanTask).catch(() => {});
       }
-      return jsonResponse(200, { ok: true, task }, true);
+      return jsonResponse(200, { ok: true, task: cleanTask }, true);
     }
 
     if (platform === "twitter") {
       const task = await extractTwitter(url, taskId);
       task.user_id = userId;
+      if (wantAiSummary) {
+        task.ai_summary = await tryGenerateAiSummary(task);
+      }
       const redis = buildUpstashClientOrNone();
       if (redis && userId) {
         await saveCompletedTask(redis, task).catch(() => {});

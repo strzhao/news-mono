@@ -55,6 +55,7 @@ export async function saveCompletedTask(redis: UpstashClient, task: ExtractionTa
   };
   if (task.completed_at) serialized.completed_at = task.completed_at;
   if (task.error_message) serialized.error_message = task.error_message;
+  if (task.ai_summary) serialized.ai_summary = task.ai_summary;
 
   await redis.hset(taskKey(task.task_id), serialized);
   await redis.expire(taskKey(task.task_id), TASK_TTL_SECONDS);
@@ -157,6 +158,7 @@ function deserializeTask(raw: Record<string, string>): ExtractionTask {
     completed_at: raw.completed_at || undefined,
     error_message: raw.error_message || undefined,
     blob_ttl_hours: Number(raw.blob_ttl_hours) || 72,
+    ai_summary: raw.ai_summary || undefined,
   };
 }
 

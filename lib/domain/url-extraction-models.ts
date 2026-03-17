@@ -37,6 +37,8 @@ export interface ExtractionTask {
   completed_at?: string;
   error_message?: string;
   blob_ttl_hours: number;
+  /** AI-generated summary markdown (populated when ai_summary was requested). */
+  ai_summary?: string;
 }
 
 export const DEFAULT_BLOB_TTL_HOURS = 72;

@@ -362,7 +362,7 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
   const heartbeatIntervalMs = boundedInt(String(process.env.INGESTION_HEARTBEAT_INTERVAL_MS || "15000"), 15_000, 5_000, 60_000);
   const fetchStageTimeoutMs = boundedInt(String(process.env.INGESTION_FETCH_STAGE_TIMEOUT_MS || "80000"), 80_000, 10_000, 240_000);
   const evalStageTimeoutMs = boundedInt(String(process.env.INGESTION_EVAL_STAGE_TIMEOUT_MS || "140000"), 140_000, 10_000, 260_000);
-  const runHardTimeoutMs = boundedInt(String(process.env.INGESTION_RUN_TIMEOUT_MS || "260000"), 260_000, 30_000, 295_000);
+  const runHardTimeoutMs = boundedInt(String(process.env.INGESTION_RUN_TIMEOUT_MS || "280000"), 280_000, 30_000, 295_000);
   const evalPerArticleEstimateMs = boundedInt(
     String(process.env.INGESTION_EVAL_ESTIMATE_PER_ARTICLE_MS || "12000"),
     12_000,

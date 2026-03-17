@@ -60,7 +60,7 @@ function jitterDelayMs(request: Request, url: URL): { triggerType: TriggerType; 
   if (boolFlag(queryValue(url, "skip_jitter"))) {
     return { triggerType, delayMs: 0 };
   }
-  const jitterMaxSeconds = boundedInt(String(process.env.INGESTION_CRON_JITTER_MAX_SECONDS || "15"), 15, 0, 180);
+  const jitterMaxSeconds = boundedInt(String(process.env.INGESTION_CRON_JITTER_MAX_SECONDS || "10"), 10, 0, 180);
   if (jitterMaxSeconds <= 0) {
     return { triggerType, delayMs: 0 };
   }

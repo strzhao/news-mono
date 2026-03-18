@@ -20,6 +20,8 @@ export interface FetchArticleContentOptions {
   maxTextChars?: number;
   maxImages?: number;
   fetchImpl?: typeof fetch;
+  /** When true, skip HTTP-fetch fallback if browser extraction fails (e.g. WeChat requires JS rendering). */
+  noBrowserFallback?: boolean;
 }
 
 export interface ArticleContentPayload {
@@ -326,10 +328,15 @@ export async function fetchArticleContentSmart(
         maxImages: options.maxImages,
       });
     } catch (err) {
+      if (options.noBrowserFallback) {
+        throw err instanceof Error ? err : new Error(String(err));
+      }
       console.warn(
         `[fetchSmart] Browser extract failed for ${rawUrl}, falling back to fetch: ${err instanceof Error ? err.message : err}`,
       );
     }
+  } else if (options.noBrowserFallback) {
+    throw new Error("Browser extraction required but BROWSER_EXTRACT_URL not configured");
   }
 
   // Fallback to simple HTTP fetch

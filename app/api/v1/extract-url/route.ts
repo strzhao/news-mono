@@ -74,8 +74,16 @@ function extractTitle(html: string): string {
   return titleMatch ? String(titleMatch[1] || "").trim() : "";
 }
 
-async function extractWebpage(url: string, taskId: string): Promise<ExtractionTask & { _extractedText?: string }> {
-  const content = await fetchArticleContentSmart(url, { timeoutMs: 15_000 });
+async function extractWebpage(url: string, taskId: string, platform: string): Promise<ExtractionTask & { _extractedText?: string }> {
+  const needsBrowser = platform === "wechat";
+  const content = await fetchArticleContentSmart(url, {
+    timeoutMs: 15_000,
+    noBrowserFallback: needsBrowser,
+  });
+
+  if (content.text.length < 50) {
+    throw new Error(`Extraction returned insufficient content (${content.text.length} chars) for ${url}`);
+  }
 
   const resources: ExtractedResource[] = [];
 
@@ -162,7 +170,7 @@ export async function POST(request: Request): Promise<Response> {
 
     // Webpage and Twitter can be extracted directly on Vercel
     if (platform === "webpage" || platform === "wechat") {
-      const task = await extractWebpage(url, taskId);
+      const task = await extractWebpage(url, taskId, platform);
       task.platform = platform;
       task.user_id = userId;
       if (wantAiSummary) {
@@ -226,7 +234,13 @@ export async function POST(request: Request): Promise<Response> {
 
     return jsonResponse(400, { ok: false, error: "unsupported_platform", message: `不支持的平台: ${platform}` }, true);
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    const message = error instanceof Error ? error.message : String(error);
+    const isExtractionFailure = message.includes("Extraction returned insufficient") || message.includes("Browser extract");
+    return jsonResponse(
+      isExtractionFailure ? 422 : 500,
+      { ok: false, error: isExtractionFailure ? "extraction_failed" : "internal_error", message },
+      true,
+    );
   }
 }
 

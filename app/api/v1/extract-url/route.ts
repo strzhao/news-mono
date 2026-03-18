@@ -75,10 +75,9 @@ function extractTitle(html: string): string {
 }
 
 async function extractWebpage(url: string, taskId: string, platform: string): Promise<ExtractionTask & { _extractedText?: string }> {
-  const needsBrowser = platform === "wechat";
   const content = await fetchArticleContentSmart(url, {
     timeoutMs: 15_000,
-    noBrowserFallback: needsBrowser,
+    httpOnly: platform === "wechat",
   });
 
   if (content.text.length < 50) {

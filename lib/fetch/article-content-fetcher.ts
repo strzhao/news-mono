@@ -20,8 +20,8 @@ export interface FetchArticleContentOptions {
   maxTextChars?: number;
   maxImages?: number;
   fetchImpl?: typeof fetch;
-  /** When true, skip HTTP-fetch fallback if browser extraction fails (e.g. WeChat requires JS rendering). */
-  noBrowserFallback?: boolean;
+  /** When true, skip browser extraction and use HTTP fetch directly (e.g. WeChat SSR pages). */
+  httpOnly?: boolean;
 }
 
 export interface ArticleContentPayload {
@@ -319,8 +319,8 @@ export async function fetchArticleContentSmart(
   rawUrl: string,
   options: FetchArticleContentOptions = {},
 ): Promise<ArticleContentPayload> {
-  // Try browser extraction if service is configured
-  if (process.env.BROWSER_EXTRACT_URL) {
+  // Some platforms (e.g. WeChat) serve full SSR content — skip browser, use HTTP directly
+  if (!options.httpOnly && process.env.BROWSER_EXTRACT_URL) {
     try {
       return await fetchViaBrowser(rawUrl, {
         timeoutMs: options.timeoutMs,
@@ -328,17 +328,12 @@ export async function fetchArticleContentSmart(
         maxImages: options.maxImages,
       });
     } catch (err) {
-      if (options.noBrowserFallback) {
-        throw err instanceof Error ? err : new Error(String(err));
-      }
       console.warn(
         `[fetchSmart] Browser extract failed for ${rawUrl}, falling back to fetch: ${err instanceof Error ? err.message : err}`,
       );
     }
-  } else if (options.noBrowserFallback) {
-    throw new Error("Browser extraction required but BROWSER_EXTRACT_URL not configured");
   }
 
-  // Fallback to simple HTTP fetch
+  // HTTP fetch (primary path for httpOnly, fallback otherwise)
   return fetchArticleContent(rawUrl, options);
 }

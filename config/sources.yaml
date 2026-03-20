@@ -247,6 +247,12 @@ sources:
     source_type: twitter
 
     source_weight: 1.08
+  - id: x_stitchbygoogle
+    name: Stitch by Google（X）
+    rsshub_route: /twitter/user/stitchbygoogle
+    source_type: twitter
+
+    source_weight: 1.08
 
   # GitHub Trending (via mshibanami/GitHubTrendingRSS, GitHub Pages hosted)
   - id: github_trending_daily

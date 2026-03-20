@@ -64,7 +64,7 @@ sources:
     rsshub_route: /twitter/user/Khazix0918
     source_type: twitter
 
-    source_weight: 1.08
+    source_weight: 1.20
   - id: x_dotey
     name: 宝玉 AI（X）
     rsshub_route: /twitter/user/dotey

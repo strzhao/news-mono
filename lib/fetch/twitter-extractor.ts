@@ -34,6 +34,7 @@ export async function extractTwitterContent(
 
   // Parse RSS items to find the matching tweet
   const items = parseRssItems(rssXml);
+  console.log(`[twitter-extractor] feedUrl=${feedUrl} items=${items.length} target=${tweetInfo.tweetId}`);
   const matchingItem = items.find(
     (item) => item.link.includes(tweetInfo.tweetId) || item.guid?.includes(tweetInfo.tweetId),
   );
@@ -64,7 +65,10 @@ export async function extractTwitterContent(
       });
     }
   } else {
-    throw new Error("无法通过 RSSHub 获取推文内容。可能推文较旧或 RSSHub 缓存已过期。");
+    const hint = items.length === 0
+      ? "RSSHub 返回了空 feed，可能该用户没有推文或 RSSHub Twitter 路由异常"
+      : `RSSHub 仅缓存了该用户最近 ${items.length} 条推文，目标推文不在其中（推文可能较旧）`;
+    throw new Error(`无法通过 RSSHub 获取推文内容。${hint}`);
   }
 
   return { resources, metadata };

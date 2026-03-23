@@ -16,3 +16,4 @@ extraction-worker/logs/
 extraction-worker/data/
 .env*.local
 .claude/dev-loop.local.md
+.claude/autopilot.local.md

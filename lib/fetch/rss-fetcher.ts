@@ -3,6 +3,7 @@ import Parser from "rss-parser";
 import { Article, SourceConfig } from "@/lib/domain/models";
 import { gaussianJitter } from "./timing";
 import { retryWithBackoff } from "./retry";
+import { fetchWechatSogouArticles, shouldUseWechatSogou } from "./wechat-sogou-fetcher";
 
 const TAG_RE = /<[^>]+>/g;
 const MULTISPACE_RE = /\s+/g;
@@ -212,8 +213,30 @@ export async function fetchArticles(
       let sourceFetched = 0;
       try {
         const remainingMs = Math.max(1_000, deadline - Date.now());
-        const feed = await fetchFeedWithTimeout(source.url, Math.min(timeoutMs, remainingMs));
         const perSourceCap = Math.trunc(perSourceLimits[source.id] ?? maxPerSource);
+        if (shouldUseWechatSogou(source)) {
+          try {
+            const htmlArticles = await fetchWechatSogouArticles(source, {
+              timeoutMs: Math.min(timeoutMs, remainingMs),
+              maxItems: perSourceCap,
+            });
+            if (htmlArticles.length || source.fallbackFetchMethod !== "rss") {
+              articles.push(...htmlArticles);
+              sourceFetched = htmlArticles.length;
+              sourceStats[source.id] = { fetched: sourceFetched };
+              if (timeoutSeconds > 0) {
+                await gaussianJitter(200, 80);
+              }
+              continue;
+            }
+          } catch (error) {
+            if (source.fallbackFetchMethod !== "rss") {
+              throw error;
+            }
+          }
+        }
+
+        const feed = await fetchFeedWithTimeout(source.url, Math.min(timeoutMs, remainingMs));
         const entries = (feed.items || []).slice(0, Math.max(0, perSourceCap));
 
         for (const entry of entries) {

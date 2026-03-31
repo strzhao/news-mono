@@ -83,6 +83,10 @@ export function loadSources(sourcePath?: string): SourceConfig[] {
       sourceWeight: Number(record.source_weight ?? 1.0) || 1.0,
       sourceType: String(record.source_type || "rss").trim(),
       onlyExternalLinks: Boolean(record.only_external_links || false),
+      fetchMethod: (String(record.fetch_method || "").trim() || "rss") as SourceConfig["fetchMethod"],
+      fallbackFetchMethod: (String(record.fallback_fetch_method || "").trim() || undefined) as SourceConfig["fallbackFetchMethod"],
+      wechatSogouQuery: String(record.wechat_sogou_query || "").trim() || undefined,
+      wechatSogouAuthor: String(record.wechat_sogou_author || "").trim() || undefined,
     });
 
     seenIds.add(sourceId);

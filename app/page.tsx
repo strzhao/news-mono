@@ -91,7 +91,7 @@ export default async function HomePage() {
           <div className={styles.sourceCard} data-channel="wechat">
             <div className={styles.sourceIcon} data-channel="wechat">微</div>
             <h3 className={styles.sourceCardTitle}>微信公众号</h3>
-            <p className={styles.sourceCardCount}>8 个头部账号</p>
+            <p className={styles.sourceCardCount}>9 个头部账号</p>
             <p className={styles.sourceCardDesc}>
               量子位、机器之心、新智元、晚点LatePost 等
             </p>

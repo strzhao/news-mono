@@ -1,16 +1,22 @@
 /**
  * Generic browser-based content extraction via Playwright.
  *
- * Manages a shared Chromium instance (lazy-created, idle-timeout) and exposes
+ * Manages a shared background browser instance (lazy-created, idle-timeout)
+ * and exposes
  * an `extractWithBrowser(url, options)` function that renders a page and
  * extracts title, text, HTML, images, author, and publication date.
  *
  * Used by the HTTP server (`server.ts`) to provide a browser extraction
  * service for Vercel-side callers (pre-crawl, extract-url API).
  */
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { execFileSync } from "node:child_process";
+import { type Browser, type BrowserContext, type Page } from "playwright";
 import { createHash } from "node:crypto";
+import {
+  getBackgroundBrowserKind,
+  hasProxyServer,
+  launchBackgroundBrowser,
+} from "../browser-runtime.js";
 import { uploadBufferToBlob } from "../upload.js";
 
 // ---------------------------------------------------------------------------
@@ -43,11 +49,14 @@ const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 let browserInstance: Browser | null = null;
 let browserPid: number | null = null;
+let browserLaunchPromise: Promise<Browser> | null = null;
 let activePages = 0;
+let activeRequests = 0;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let totalLaunches = 0;
 let totalCloses = 0;
 let requestSequence = 0;
+const backgroundBrowserKind = getBackgroundBrowserKind();
 
 function formatError(error: unknown): string {
   if (error instanceof Error) return error.stack || `${error.name}: ${error.message}`;
@@ -64,8 +73,10 @@ function logPoolEvent(event: string, details: Record<string, unknown> = {}): voi
     JSON.stringify({
       event,
       browser_pid: browserPid,
+      browser_kind: backgroundBrowserKind,
       browser_connected: Boolean(browserInstance?.isConnected()),
       active_pages: activePages,
+      active_requests: activeRequests,
       active_contexts: browserContextCount(),
       queued_requests: waiting.length,
       total_launches: totalLaunches,
@@ -84,21 +95,50 @@ function requestHost(url: string): string {
 }
 
 function detectBrowserPid(): number | null {
+  const knownPids = listChildBrowserPids();
+  const newestPid = [...knownPids].sort((a, b) => b - a)[0];
+  return newestPid ?? null;
+}
+
+function listChildBrowserPids(): Set<number> {
   try {
     const output = execFileSync(
-      "pgrep",
-      ["-P", String(process.pid), "-fl", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
+      "ps",
+      ["-axo", "pid=,ppid=,command="],
       { encoding: "utf8" },
     );
-    const firstLine = output.trim().split("\n")[0] ?? "";
-    const pid = Number.parseInt(firstLine.split(/\s+/, 1)[0] ?? "", 10);
-    return Number.isFinite(pid) ? pid : null;
+    const pids = new Set<number>();
+    for (const line of output.split("\n")) {
+      const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
+      if (!match) continue;
+      const pid = Number.parseInt(match[1], 10);
+      const ppid = Number.parseInt(match[2], 10);
+      const command = match[3] || "";
+      if (ppid !== process.pid || !Number.isFinite(pid)) continue;
+      if (
+        !command.includes("chrome-headless-shell") &&
+        !command.includes("/Contents/MacOS/Chromium") &&
+        !command.includes("/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing") &&
+        !command.includes("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+      ) {
+        continue;
+      }
+      pids.add(pid);
+    }
+    return pids;
   } catch {
-    return null;
+    return new Set();
   }
 }
 
 async function closeBrowserInstance(reason: string): Promise<void> {
+  if (!browserInstance && browserLaunchPromise) {
+    try {
+      await browserLaunchPromise;
+    } catch {
+      return;
+    }
+  }
   if (!browserInstance) return;
 
   const browser = browserInstance;
@@ -140,32 +180,59 @@ async function acquireBrowser(): Promise<Browser> {
     browserPid = null;
   }
 
-  const proxyUrl =
-    process.env.https_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.http_proxy ||
-    "";
-
-  const launchOptions: Record<string, unknown> = {
-    headless: true,
-    channel: "chrome",
-    args: ["--disable-blink-features=AutomationControlled"],
-  };
-  if (proxyUrl) {
-    launchOptions.proxy = { server: proxyUrl };
+  if (browserLaunchPromise) {
+    const browser = await browserLaunchPromise;
+    activePages++;
+    return browser;
   }
 
-  browserInstance = await chromium.launch(launchOptions);
-  browserPid = detectBrowserPid();
-  activePages++;
-  totalLaunches++;
-  logPoolEvent("browser-launched", {
-    browser_pid: browserPid,
-    headless: true,
-    channel: "chrome",
-    proxy_enabled: Boolean(proxyUrl),
-  });
-  return browserInstance;
+  const existingChildPids = listChildBrowserPids();
+  const launchPromise = (async () => {
+    const browser = await launchBackgroundBrowser();
+    browserInstance = browser;
+    browserPid = detectLaunchedBrowserPid(existingChildPids);
+    totalLaunches++;
+    browser.on("disconnected", () => {
+      if (browserInstance === browser) {
+        logPoolEvent("browser-disconnected", {
+          browser_pid: browserPid,
+        });
+        browserInstance = null;
+        browserPid = null;
+      }
+    });
+    logPoolEvent("browser-launched", {
+      browser_pid: browserPid,
+      headless: true,
+      proxy_enabled: hasProxyServer(),
+    });
+    return browser;
+  })();
+
+  browserLaunchPromise = launchPromise;
+  try {
+    const browser = await launchPromise;
+    activePages++;
+    return browser;
+  } catch (error) {
+    logPoolEvent("browser-launch-failed", {
+      error: formatError(error),
+    });
+    throw error;
+  } finally {
+    if (browserLaunchPromise === launchPromise) {
+      browserLaunchPromise = null;
+    }
+  }
+}
+
+function detectLaunchedBrowserPid(existingChildPids: Set<number>): number | null {
+  const currentChildPids = listChildBrowserPids();
+  const launchedPid =
+    [...currentChildPids]
+      .filter((pid) => !existingChildPids.has(pid))
+      .sort((a, b) => b - a)[0] ?? null;
+  return launchedPid ?? detectBrowserPid();
 }
 
 function releasePage(): void {
@@ -196,13 +263,16 @@ export async function closeBrowserPool(reason = "shutdown"): Promise<void> {
 let waiting: Array<() => void> = [];
 
 async function acquireSlot(): Promise<void> {
-  if (activePages < MAX_CONCURRENT_PAGES) return;
-  await new Promise<void>((resolve) => {
-    waiting.push(resolve);
-  });
+  if (activeRequests >= MAX_CONCURRENT_PAGES) {
+    await new Promise<void>((resolve) => {
+      waiting.push(resolve);
+    });
+  }
+  activeRequests++;
 }
 
 function releaseSlot(): void {
+  activeRequests = Math.max(0, activeRequests - 1);
   const next = waiting.shift();
   if (next) next();
 }
@@ -409,19 +479,21 @@ export async function extractWithBrowser(
   const startedAt = Date.now();
 
   await acquireSlot();
-  const browser = await acquireBrowser();
-  const requestBrowserPid = browserPid;
-
+  let browser: Browser | null = null;
+  let requestBrowserPid: number | null = null;
   let context: BrowserContext | null = null;
   let page: Page | null = null;
   let outcome: "ok" | "error" = "ok";
   let requestError: string | null = null;
-  logPoolEvent("request-acquired", {
-    request_id: requestId,
-    host,
-    browser_pid: requestBrowserPid,
-  });
   try {
+    browser = await acquireBrowser();
+    requestBrowserPid = browserPid;
+    logPoolEvent("request-acquired", {
+      request_id: requestId,
+      host,
+      browser_pid: requestBrowserPid,
+    });
+
     context = await browser.newContext({
       userAgent: sessionUA.ua,
       locale: "zh-CN",

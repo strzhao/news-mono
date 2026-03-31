@@ -15,7 +15,7 @@ import { execFile } from "node:child_process";
 import { tmpdir, homedir } from "node:os";
 import { mkdtemp, rm, readdir, stat } from "node:fs/promises";
 import { join, extname } from "node:path";
-import { chromium } from "playwright";
+import { launchBackgroundBrowser } from "../browser-runtime.js";
 import { uploadFileToBlob, uploadBufferToBlob } from "../upload.js";
 import { ytdlpProxyArgs } from "./youtube.js";
 
@@ -210,18 +210,12 @@ function parseGraphQLMedia(media: any): PostData | null {
 
 // ===== Tier 1: Playwright with session =====
 async function extractViaPlaywright(url: string, shortcode: string, taskId: string): Promise<PostData | null> {
-  const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || "";
-  const launchOptions: Record<string, unknown> = { headless: true, channel: "chrome", args: ["--disable-blink-features=AutomationControlled"] };
-  if (proxyUrl) {
-    launchOptions.proxy = { server: proxyUrl };
-  }
-
   const hasState = await hasSessionState();
   if (!hasState) {
     console.log(`[${taskId}] No Instagram session found. Run 'npm run ig-login' first.`);
   }
 
-  const browser = await chromium.launch(launchOptions);
+  const browser = await launchBackgroundBrowser();
   try {
     const contextOptions: Record<string, unknown> = {
       userAgent: UA,

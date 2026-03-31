@@ -32,6 +32,7 @@ import { extractBilibili } from "./extractors/bilibili.js";
 import { extractXiaohongshu } from "./extractors/xiaohongshu.js";
 import { extractInstagram } from "./extractors/instagram.js";
 import { startServer } from "./server.js";
+import { warnIfBackgroundBrowserMissing } from "./browser-runtime.js";
 
 const SERVER_MODE = process.argv.includes("--server");
 const POLL_MODE = process.argv.includes("--poll");
@@ -116,6 +117,7 @@ async function main(): Promise<void> {
     console.log(`  ARTICLE_DB_FALLBACK_BASE_URLS: ${ARTICLE_DB_FALLBACK_BASE_URLS.join(", ")}`);
   }
   console.log(`  Mode: ${modes.join(" + ")}`);
+  await warnIfBackgroundBrowserMissing();
 
   // Start HTTP server if requested (does not block)
   if (SERVER_MODE) {

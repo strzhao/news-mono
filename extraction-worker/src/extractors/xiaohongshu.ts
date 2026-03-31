@@ -17,7 +17,7 @@ import { execFile } from "node:child_process";
 import { tmpdir, homedir } from "node:os";
 import { mkdtemp, rm, readdir, readFile, stat } from "node:fs/promises";
 import { join, extname } from "node:path";
-import { chromium } from "playwright";
+import { launchBackgroundBrowser } from "../browser-runtime.js";
 import { uploadFileToBlob, uploadBufferToBlob } from "../upload.js";
 import { ytdlpProxyArgs } from "./youtube.js";
 
@@ -130,24 +130,13 @@ async function hasSessionState(): Promise<boolean> {
 
 // Use Playwright to load XHS page and extract note data from the rendered DOM
 async function extractViaPlaywright(url: string, taskId: string): Promise<NoteData | null> {
-  const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || "";
-
-  const launchOptions: Record<string, unknown> = {
-    headless: true,
-    channel: "chrome",
-    args: ["--disable-blink-features=AutomationControlled"],
-  };
-  if (proxyUrl) {
-    launchOptions.proxy = { server: proxyUrl };
-  }
-
   // Check for saved session state
   const hasState = await hasSessionState();
   if (!hasState) {
     console.log(`[${taskId}] No XHS session found. Run 'npx tsx src/xhs-login.ts' to log in first.`);
   }
 
-  const browser = await chromium.launch(launchOptions);
+  const browser = await launchBackgroundBrowser();
   try {
     const contextOptions: Record<string, unknown> = {
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx --env-file=.env src/index.ts",
     "dev": "tsx --env-file=.env watch src/index.ts",
+    "install:chromium": "playwright install chromium",
     "xhs-login": "tsx --env-file=.env src/xhs-login.ts",
     "xhs-keep-alive": "tsx --env-file=.env src/xhs-keep-alive.ts",
     "ig-login": "tsx --env-file=.env src/ig-login.ts",

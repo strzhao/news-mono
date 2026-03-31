@@ -13,10 +13,11 @@
  * Usage: npm run xhs-keep-alive
  * Recommended: run via cron every 12 hours.
  */
-import { chromium, type Page } from "playwright";
+import { type Page } from "playwright";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { launchBackgroundBrowser } from "./browser-runtime.js";
 
 const STATE_FILE = join(homedir(), ".xhs-session", "state.json");
 
@@ -90,15 +91,9 @@ async function main() {
   console.log(`[${new Date().toISOString()}] Waiting ${Math.round(delayMs / 1000)}s before starting...`);
   await new Promise((r) => setTimeout(r, delayMs));
 
-  const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || "";
   const viewport = pickRandom(VIEWPORTS);
 
-  const browser = await chromium.launch({
-    headless: true,
-    channel: "chrome",
-    ...(proxyUrl ? { proxy: { server: proxyUrl } } : {}),
-    args: ["--disable-blink-features=AutomationControlled"],
-  });
+  const browser = await launchBackgroundBrowser();
 
   try {
     const context = await browser.newContext({

@@ -8,7 +8,8 @@
  * Used by the HTTP server (`server.ts`) to provide a browser extraction
  * service for Vercel-side callers (pre-crawl, extract-url API).
  */
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { uploadBufferToBlob } from "../upload.js";
 
@@ -41,8 +42,84 @@ const MAX_CONCURRENT_PAGES = 3;
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 let browserInstance: Browser | null = null;
+let browserPid: number | null = null;
 let activePages = 0;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
+let totalLaunches = 0;
+let totalCloses = 0;
+let requestSequence = 0;
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.stack || `${error.name}: ${error.message}`;
+  return String(error);
+}
+
+function browserContextCount(): number {
+  return browserInstance && browserInstance.isConnected() ? browserInstance.contexts().length : 0;
+}
+
+function logPoolEvent(event: string, details: Record<string, unknown> = {}): void {
+  console.log(
+    "[browser]",
+    JSON.stringify({
+      event,
+      browser_pid: browserPid,
+      browser_connected: Boolean(browserInstance?.isConnected()),
+      active_pages: activePages,
+      active_contexts: browserContextCount(),
+      queued_requests: waiting.length,
+      total_launches: totalLaunches,
+      total_closes: totalCloses,
+      ...details,
+    }),
+  );
+}
+
+function requestHost(url: string): string {
+  try {
+    return new URL(url).host || "(no-host)";
+  } catch {
+    return "(invalid-url)";
+  }
+}
+
+function detectBrowserPid(): number | null {
+  try {
+    const output = execFileSync(
+      "pgrep",
+      ["-P", String(process.pid), "-fl", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
+      { encoding: "utf8" },
+    );
+    const firstLine = output.trim().split("\n")[0] ?? "";
+    const pid = Number.parseInt(firstLine.split(/\s+/, 1)[0] ?? "", 10);
+    return Number.isFinite(pid) ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+async function closeBrowserInstance(reason: string): Promise<void> {
+  if (!browserInstance) return;
+
+  const browser = browserInstance;
+  const pid = browserPid;
+  logPoolEvent("browser-close-start", { reason, browser_pid: pid });
+
+  browserInstance = null;
+  browserPid = null;
+  totalCloses++;
+
+  try {
+    await browser.close();
+    logPoolEvent("browser-closed", { reason, browser_pid: pid });
+  } catch (error) {
+    logPoolEvent("browser-close-error", {
+      reason,
+      browser_pid: pid,
+      error: formatError(error),
+    });
+  }
+}
 
 async function acquireBrowser(): Promise<Browser> {
   if (idleTimer) {
@@ -50,9 +127,17 @@ async function acquireBrowser(): Promise<Browser> {
     idleTimer = null;
   }
 
-  if (browserInstance && browserInstance.isConnected()) {
-    activePages++;
-    return browserInstance;
+  if (browserInstance) {
+    if (browserInstance.isConnected()) {
+      activePages++;
+      return browserInstance;
+    }
+    logPoolEvent("browser-disconnected-before-recreate", {
+      reason: "isConnected=false",
+      browser_pid: browserPid,
+    });
+    browserInstance = null;
+    browserPid = null;
   }
 
   const proxyUrl =
@@ -71,8 +156,15 @@ async function acquireBrowser(): Promise<Browser> {
   }
 
   browserInstance = await chromium.launch(launchOptions);
+  browserPid = detectBrowserPid();
   activePages++;
-  console.log("[browser] Chromium instance launched");
+  totalLaunches++;
+  logPoolEvent("browser-launched", {
+    browser_pid: browserPid,
+    headless: true,
+    channel: "chrome",
+    proxy_enabled: Boolean(proxyUrl),
+  });
   return browserInstance;
 }
 
@@ -81,24 +173,20 @@ function releasePage(): void {
   if (activePages === 0) {
     idleTimer = setTimeout(async () => {
       if (browserInstance && activePages === 0) {
-        await browserInstance.close().catch(() => {});
-        browserInstance = null;
-        console.log("[browser] Chromium instance closed (idle timeout)");
+        await closeBrowserInstance("idle-timeout");
       }
     }, IDLE_TIMEOUT_MS);
   }
 }
 
 /** Gracefully shut down the browser pool. */
-export async function closeBrowserPool(): Promise<void> {
+export async function closeBrowserPool(reason = "shutdown"): Promise<void> {
   if (idleTimer) {
     clearTimeout(idleTimer);
     idleTimer = null;
   }
-  if (browserInstance) {
-    await browserInstance.close().catch(() => {});
-    browserInstance = null;
-  }
+  logPoolEvent("pool-close-requested", { reason });
+  await closeBrowserInstance(reason);
 }
 
 // ---------------------------------------------------------------------------
@@ -316,13 +404,25 @@ export async function extractWithBrowser(
   const timeoutMs = options.timeoutMs ?? 30_000;
   const maxTextChars = options.maxTextChars ?? 120_000;
   const maxImages = options.maxImages ?? 24;
+  const requestId = `req-${++requestSequence}`;
+  const host = requestHost(url);
+  const startedAt = Date.now();
 
   await acquireSlot();
   const browser = await acquireBrowser();
+  const requestBrowserPid = browserPid;
 
+  let context: BrowserContext | null = null;
   let page: Page | null = null;
+  let outcome: "ok" | "error" = "ok";
+  let requestError: string | null = null;
+  logPoolEvent("request-acquired", {
+    request_id: requestId,
+    host,
+    browser_pid: requestBrowserPid,
+  });
   try {
-    const context = await browser.newContext({
+    context = await browser.newContext({
       userAgent: sessionUA.ua,
       locale: "zh-CN",
       viewport: sessionViewport,
@@ -504,8 +604,6 @@ export async function extractWithBrowser(
     const cleanHtml = removeNoiseTags(fullHtml);
     const text = htmlToText(cleanHtml, maxTextChars);
 
-    await context.close();
-
     // For WeChat articles, download images to Vercel Blob to bypass hotlink protection
     let finalHtml = cleanHtml;
     let finalImages = data.images || [];
@@ -529,8 +627,42 @@ export async function extractWithBrowser(
       author: data.author || "",
       published_at: data.published_at || "",
     };
+  } catch (error) {
+    outcome = "error";
+    requestError = formatError(error);
+    logPoolEvent("request-failed", {
+      request_id: requestId,
+      host,
+      browser_pid: requestBrowserPid,
+      duration_ms: Date.now() - startedAt,
+      error: requestError,
+    });
+    throw error;
   } finally {
+    const cleanupErrors: string[] = [];
+
+    if (page && !page.isClosed()) {
+      await page.close().catch((error) => {
+        cleanupErrors.push(`page: ${formatError(error)}`);
+      });
+    }
+
+    if (context) {
+      await context.close().catch((error) => {
+        cleanupErrors.push(`context: ${formatError(error)}`);
+      });
+    }
+
     releasePage();
     releaseSlot();
+    logPoolEvent("request-released", {
+      request_id: requestId,
+      host,
+      browser_pid: requestBrowserPid,
+      duration_ms: Date.now() - startedAt,
+      outcome,
+      error: requestError,
+      cleanup_errors: cleanupErrors.length ? cleanupErrors : undefined,
+    });
   }
 }

@@ -20,6 +20,33 @@ const PORT = Number(process.env.BROWSER_EXTRACT_PORT) || 3100;
 const AUTH_TOKEN = process.env.BROWSER_EXTRACT_AUTH_TOKEN || "";
 const startedAt = Date.now();
 
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.stack || `${error.name}: ${error.message}`;
+  return String(error);
+}
+
+function closeHttpServer(server: http.Server): Promise<void> {
+  return new Promise((resolve) => {
+    const forceCloseTimer = setTimeout(() => {
+      console.warn("[server] Force-closing open connections after shutdown timeout");
+      server.closeAllConnections?.();
+    }, 5_000);
+    forceCloseTimer.unref();
+
+    server.close((error) => {
+      clearTimeout(forceCloseTimer);
+      if (error) {
+        console.error(`[server] Error while closing HTTP server: ${formatError(error)}`);
+      } else {
+        console.log("[server] HTTP server closed");
+      }
+      resolve();
+    });
+
+    server.closeIdleConnections?.();
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -157,15 +184,48 @@ export function startServer(): http.Server {
     }
   });
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    console.log("[server] Shutting down...");
-    server.close();
-    await closeBrowserPool();
-    process.exit(0);
+  let shutdownPromise: Promise<void> | null = null;
+
+  const shutdown = (reason: string, exitCode: number, error?: unknown): Promise<void> => {
+    if (shutdownPromise) {
+      console.log(`[server] Shutdown already in progress (reason=${reason})`);
+      return shutdownPromise;
+    }
+
+    shutdownPromise = (async () => {
+      if (error) {
+        console.error(`[server] Shutdown triggered by ${reason}: ${formatError(error)}`);
+      } else {
+        console.log(`[server] Shutdown triggered by ${reason}`);
+      }
+
+      await closeHttpServer(server);
+      await closeBrowserPool(reason).catch((closeError) => {
+        console.error(
+          `[server] Failed to close browser pool during ${reason}: ${formatError(closeError)}`,
+        );
+      });
+      process.exit(exitCode);
+    })();
+
+    return shutdownPromise;
   };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+
+  process.on("SIGINT", () => {
+    void shutdown("SIGINT", 0);
+  });
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM", 0);
+  });
+  process.on("SIGHUP", () => {
+    void shutdown("SIGHUP", 0);
+  });
+  process.on("uncaughtException", (error) => {
+    void shutdown("uncaughtException", 1, error);
+  });
+  process.on("unhandledRejection", (reason) => {
+    void shutdown("unhandledRejection", 1, reason);
+  });
 
   return server;
 }

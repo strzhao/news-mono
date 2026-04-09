@@ -1,4 +1,5 @@
 import { loadArticleTypes, loadSources } from "@/lib/config-loader";
+import { currentDateInTimezone, isPublishedWithinReportWindow } from "@/lib/domain/article-identity";
 import { Article, DedupeStats } from "@/lib/domain/models";
 import { fetchArticleContent, fetchArticleContentSmart } from "@/lib/fetch/article-content-fetcher";
 import { fetchArticles, type SourceFetchStat } from "@/lib/fetch/rss-fetcher";
@@ -35,17 +36,6 @@ import {
 } from "@/lib/article-db/repository";
 import { generateArticleSummary } from "@/lib/llm/article-summary-generator";
 
-function targetDate(dateValue: string | undefined, timezoneName: string): string {
-  if (dateValue) return dateValue;
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezoneName,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const [{ value: year }, , { value: month }, , { value: day }] = formatter.formatToParts(new Date());
-  return `${year}-${month}-${day}`;
-}
 
 function nonEmptyDate(value: string): string {
   const raw = String(value || "").trim();
@@ -61,6 +51,51 @@ function sortedByPublishedAtDesc(articles: Article[]): Article[] {
     const rightTs = right.publishedAt ? right.publishedAt.getTime() : 0;
     return rightTs - leftTs;
   });
+}
+
+
+export function buildEvaluationPool(
+  articles: Article[],
+  maxEvalArticles: number,
+  options: {
+    reservedWechatArticles?: number;
+    reservedWechatMaxAgeDays?: number;
+    referenceDate?: string;
+    timezoneName?: string;
+    nowMs?: number;
+  } = {},
+): Article[] {
+  const limit = Math.max(1, Math.trunc(maxEvalArticles || 0));
+  const timezoneName = String(options.timezoneName || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+  const nowMs = options.nowMs ?? Date.now();
+  const referenceDate = String(options.referenceDate || "").trim() || currentDateInTimezone(timezoneName, new Date(nowMs));
+  const reservedWechatArticles = Math.max(0, Math.min(limit, Math.trunc(options.reservedWechatArticles ?? 0)));
+  const reservedWechatMaxAgeDays = Math.max(1, Math.min(3650, Math.trunc(options.reservedWechatMaxAgeDays ?? 3)));
+  const ranked = sortedByPublishedAtDesc(articles);
+
+  if (reservedWechatArticles <= 0) {
+    return ranked.slice(0, limit);
+  }
+
+  const selected: Article[] = [];
+  const selectedIds = new Set<string>();
+  const reservedWechat = ranked
+    .filter((article) => article.sourceType === "wechat" && isPublishedWithinReportWindow(article.publishedAt, referenceDate, reservedWechatMaxAgeDays, timezoneName))
+    .slice(0, reservedWechatArticles);
+
+  for (const article of reservedWechat) {
+    selected.push(article);
+    selectedIds.add(article.id);
+  }
+
+  for (const article of ranked) {
+    if (selected.length >= limit) break;
+    if (selectedIds.has(article.id)) continue;
+    selected.push(article);
+    selectedIds.add(article.id);
+  }
+
+  return selected;
 }
 
 function isEnabled(name: string, defaultValue = "true"): boolean {
@@ -350,7 +385,7 @@ export interface IngestionResult {
 
 export async function runIngestionWithResult(options: RunIngestionOptions = {}): Promise<IngestionResult> {
   const timezoneName = String(options.tz || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
-  const reportDate = nonEmptyDate(targetDate(options.date, timezoneName));
+  const reportDate = nonEmptyDate(options.date || currentDateInTimezone(timezoneName));
   const qualityThreshold = Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50")) || 50;
   const perSourceMax = boundedInt(String(process.env.ARTICLE_DB_MAX_PER_SOURCE || "25"), 25, 1, 60);
   const fetchBudget = boundedInt(String(process.env.SOURCE_FETCH_BUDGET || "0"), 0, 0, 2000);
@@ -386,6 +421,8 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
     0,
     30,
   );
+  const reservedWechatEvalArticles = boundedInt(String(process.env.INGESTION_WECHAT_RESERVED_EVAL_ARTICLES || "3"), 3, 0, 20);
+  const reservedWechatEvalMaxAgeDays = boundedInt(String(process.env.INGESTION_WECHAT_RESERVED_MAX_AGE_DAYS || "3"), 3, 1, 3650);
   const crawlHighQualityContentEnabled = isEnabled("HQ_CONTENT_CRAWL_ENABLED", "true");
   const crawlHighQualityContentLimit = boundedInt(String(process.env.HQ_CONTENT_CRAWL_LIMIT || "10"), 10, 0, 200);
   const crawlHighQualityContentConcurrency = boundedInt(
@@ -420,6 +457,13 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
   );
   const evalBudgetCap = Math.max(1, Math.floor(evalStageTimeoutMs / evalPerArticleEstimateMs));
   const maxEvalArticles = Math.max(1, Math.min(maxEvalArticlesConfig, evalBudgetCap));
+  const runStartedAtMs = Date.now();
+  const optionalStageFinalizeBufferMs = 10_000;
+  const optionalStageMinBudgetMs = 3_000;
+
+  function remainingRunTimeMs(): number {
+    return Math.max(0, runStartedAtMs + runHardTimeoutMs - Date.now());
+  }
 
   await failStaleIngestionRuns({
     runDate: reportDate,
@@ -464,6 +508,8 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             totalTimeoutSeconds: Math.max(1, fetchStageTimeoutMs / 1000),
             maxPerSource: perSourceMax,
             totalBudget: fetchBudget,
+            reportDate,
+            timezoneName,
           }),
         );
         const fetched = fetchResult.articles;
@@ -473,7 +519,12 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
         const normalized = normalizeArticles(fetched);
         const [deduped, dedupeStats] = dedupeArticles(normalized, 0.93, true) as [Article[], DedupeStats];
         const ranked = sortedByPublishedAtDesc(deduped);
-        const evaluationPool = ranked.slice(0, maxEvalArticles);
+        const evaluationPool = buildEvaluationPool(ranked, maxEvalArticles, {
+          reservedWechatArticles: reservedWechatEvalArticles,
+          reservedWechatMaxAgeDays: reservedWechatEvalMaxAgeDays,
+          referenceDate: reportDate,
+          timezoneName,
+        });
         result.dedupedCount = evaluationPool.length;
 
         // Pre-crawl content for sources with empty feeds (e.g. WeChat/WeWe RSS Atom feeds lack content/summary)
@@ -561,6 +612,8 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             selected_count_pruned_by_current_score: prunedByCurrentScore,
             daily_snapshot_merge_mode: mergeDailySnapshot,
             max_eval_articles: maxEvalArticles,
+            reserved_wechat_eval_articles: reservedWechatEvalArticles,
+            reserved_wechat_eval_max_age_days: reservedWechatEvalMaxAgeDays,
             ...aiTelemetryStats(null, "", ""),
             pre_crawl_attempted: preCrawlStats.attempted,
             pre_crawl_enriched: preCrawlStats.enriched,
@@ -689,31 +742,6 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             rankScore: Number((1000000 - index * 1000 + item.quality).toFixed(4)),
           }));
 
-        const contentCrawlStats =
-          crawlHighQualityContentEnabled && selectedRows.length
-            ? await crawlAndPersistHighQualityContent({
-                articleIds: selectedRows.map((item) => item.articleId),
-                limit: crawlHighQualityContentLimit,
-                concurrency: crawlHighQualityContentConcurrency,
-                timeoutMs: crawlHighQualityContentTimeoutMs,
-                maxHtmlBytes: crawlHighQualityContentMaxHtmlBytes,
-                maxTextChars: crawlHighQualityContentMaxTextChars,
-                maxImages: crawlHighQualityContentMaxImages,
-              })
-            : {
-                attempted: 0,
-                fetched: 0,
-                failed: 0,
-                persisted: 0,
-                fetch_error_codes: {},
-              };
-
-        const summaryAutoGenEnabled = isEnabled("SUMMARY_AUTO_GENERATE", "false");
-        const summaryAutoStats =
-          summaryAutoGenEnabled && selectedRows.length
-            ? await batchGenerateSummaries(selectedRows.map((item) => item.articleId))
-            : { attempted: 0, completed: 0, failed: 0 };
-
         const adjustedRows = scoredRows.filter((item) => item.feedbackAdjustment !== 0);
         const feedbackAdjustmentTotal = adjustedRows.reduce((sum, item) => sum + item.feedbackAdjustment, 0);
         const feedbackAdjustmentPositive = adjustedRows.filter((item) => item.feedbackAdjustment > 0).length;
@@ -739,6 +767,27 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
         const analyzedTotal = await countDailyAnalyzed(reportDate);
         result.selectedCount = selectedTotal;
 
+        const summaryAutoGenEnabled = isEnabled("SUMMARY_AUTO_GENERATE", "false");
+        let contentCrawlStats = {
+          attempted: 0,
+          fetched: 0,
+          failed: 0,
+          persisted: 0,
+          fetch_error_codes: {},
+        };
+        let summaryAutoStats = { attempted: 0, completed: 0, failed: 0 };
+        let contentCrawlStageStatus:
+          | "disabled"
+          | "completed"
+          | "skipped_insufficient_budget"
+          | "failed" = crawlHighQualityContentEnabled && selectedRows.length ? "completed" : "disabled";
+        let summaryAutoStageStatus:
+          | "disabled"
+          | "completed"
+          | "skipped_insufficient_budget"
+          | "failed" = summaryAutoGenEnabled && selectedRows.length ? "completed" : "disabled";
+        const optionalStageWarnings: string[] = [];
+
         result.ok = true;
         result.stats = {
           source_count: sources.length,
@@ -759,6 +808,8 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
           daily_snapshot_merge_mode: mergeDailySnapshot,
           quality_threshold: qualityThreshold,
           max_eval_articles: maxEvalArticles,
+          reserved_wechat_eval_articles: reservedWechatEvalArticles,
+          reserved_wechat_eval_max_age_days: reservedWechatEvalMaxAgeDays,
           max_per_source: perSourceMax,
           fetch_budget: fetchBudget,
           fetch_timeout_seconds: fetchTimeoutSeconds,
@@ -788,21 +839,91 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
           hq_content_crawl_max_html_bytes: crawlHighQualityContentMaxHtmlBytes,
           hq_content_crawl_max_text_chars: crawlHighQualityContentMaxTextChars,
           hq_content_crawl_max_images: crawlHighQualityContentMaxImages,
+          hq_content_crawl_stage_status: contentCrawlStageStatus,
           hq_content_crawl_attempted: contentCrawlStats.attempted,
           hq_content_crawl_fetched: contentCrawlStats.fetched,
           hq_content_crawl_failed: contentCrawlStats.failed,
           hq_content_crawl_persisted: contentCrawlStats.persisted,
           hq_content_crawl_error_codes: contentCrawlStats.fetch_error_codes,
           summary_auto_generate_enabled: summaryAutoGenEnabled,
+          summary_auto_stage_status: summaryAutoStageStatus,
           summary_auto_attempted: summaryAutoStats.attempted,
           summary_auto_completed: summaryAutoStats.completed,
           summary_auto_failed: summaryAutoStats.failed,
+          optional_stage_finalize_buffer_ms: optionalStageFinalizeBufferMs,
+          optional_stage_min_budget_ms: optionalStageMinBudgetMs,
+          optional_stage_warning_count: optionalStageWarnings.length,
+          optional_stage_warnings: optionalStageWarnings,
           source_fetch_success_count: sourceFetchSuccessCount,
           source_fetch_empty_count: sourceFetchEmptyCount,
           source_fetch_failed_count: sourceFetchFailedEntries.length,
           source_fetch_skipped_count: sourceFetchSkippedCount,
           source_fetch_errors: sourceFetchErrors,
           source_fetch_details: Object.fromEntries(sourceStatsEntries.map(([id, s]) => [id, { fetched: s.fetched, ...(s.error ? { error: s.error } : {}) }])),
+        };
+
+        if (crawlHighQualityContentEnabled && selectedRows.length) {
+          const remainingMs = remainingRunTimeMs() - optionalStageFinalizeBufferMs;
+          if (remainingMs < optionalStageMinBudgetMs) {
+            contentCrawlStageStatus = "skipped_insufficient_budget";
+            optionalStageWarnings.push(`hq_content_crawl skipped: only ${Math.max(0, remainingMs)}ms remaining`);
+          } else {
+            try {
+              contentCrawlStats = await withTimeout(
+                "hq_content_crawl_stage",
+                remainingMs,
+                crawlAndPersistHighQualityContent({
+                  articleIds: selectedRows.map((item) => item.articleId),
+                  limit: crawlHighQualityContentLimit,
+                  concurrency: crawlHighQualityContentConcurrency,
+                  timeoutMs: crawlHighQualityContentTimeoutMs,
+                  maxHtmlBytes: crawlHighQualityContentMaxHtmlBytes,
+                  maxTextChars: crawlHighQualityContentMaxTextChars,
+                  maxImages: crawlHighQualityContentMaxImages,
+                }),
+              );
+            } catch (error) {
+              contentCrawlStageStatus = "failed";
+              optionalStageWarnings.push(
+                `hq_content_crawl failed: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          }
+        }
+
+        if (summaryAutoGenEnabled && selectedRows.length) {
+          const remainingMs = remainingRunTimeMs() - optionalStageFinalizeBufferMs;
+          if (remainingMs < optionalStageMinBudgetMs) {
+            summaryAutoStageStatus = "skipped_insufficient_budget";
+            optionalStageWarnings.push(`summary_auto skipped: only ${Math.max(0, remainingMs)}ms remaining`);
+          } else {
+            try {
+              summaryAutoStats = await withTimeout(
+                "summary_auto_stage",
+                remainingMs,
+                batchGenerateSummaries(selectedRows.map((item) => item.articleId)),
+              );
+            } catch (error) {
+              summaryAutoStageStatus = "failed";
+              optionalStageWarnings.push(`summary_auto failed: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          }
+        }
+
+        result.stats = {
+          ...(result.stats || {}),
+          hq_content_crawl_stage_status: contentCrawlStageStatus,
+          hq_content_crawl_attempted: contentCrawlStats.attempted,
+          hq_content_crawl_fetched: contentCrawlStats.fetched,
+          hq_content_crawl_failed: contentCrawlStats.failed,
+          hq_content_crawl_persisted: contentCrawlStats.persisted,
+          hq_content_crawl_error_codes: contentCrawlStats.fetch_error_codes,
+          summary_auto_stage_status: summaryAutoStageStatus,
+          summary_auto_attempted: summaryAutoStats.attempted,
+          summary_auto_completed: summaryAutoStats.completed,
+          summary_auto_failed: summaryAutoStats.failed,
+          optional_stage_warning_count: optionalStageWarnings.length,
+          optional_stage_warnings: optionalStageWarnings,
         };
 
         await finishIngestionRun({
@@ -820,6 +941,29 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (result.ok) {
+      result.errorMessage = "";
+      result.stats = {
+        ...(result.stats || {}),
+        optional_stage_warnings: [
+          ...((Array.isArray(result.stats?.optional_stage_warnings) ? result.stats.optional_stage_warnings : []) as string[]),
+          `post_persist_error: ${message}`,
+        ],
+      };
+
+      await finishIngestionRun({
+        runId,
+        status: "success",
+        fetchedCount: result.fetchedCount,
+        dedupedCount: result.dedupedCount,
+        analyzedCount: result.evaluatedCount,
+        selectedCount: result.selectedCount,
+        statsJson: result.stats,
+      });
+
+      return result;
+    }
+
     result.errorMessage = message;
     result.stats = {
       ...(result.stats || {}),

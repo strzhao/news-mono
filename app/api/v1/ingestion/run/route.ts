@@ -22,6 +22,10 @@ function boolFlag(raw: string): boolean {
 }
 
 function isAuthorized(request: Request, url: URL): boolean | "pending_jwt" {
+  const vercelCron = String(request.headers.get("x-vercel-cron") || "").trim();
+  if (vercelCron) {
+    return true;
+  }
   const cronSecret = String(process.env.CRON_SECRET || "").trim();
   if (!cronSecret) {
     return true;

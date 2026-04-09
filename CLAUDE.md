@@ -50,10 +50,10 @@ Cron/手动触发 → loadSources(config/sources.yaml, 46+ 源)
 
 ### 目录职责
 
-- `app/api/v1/` — REST API 端点（ingestion、articles、tags、flomo、observability）
+- `app/api/v1/` — REST API 端点（ingestion、articles、tags、flomo、observability、maintenance）
 - `app/archive-review/` — 受保护的文章审阅 UI（需网关会话登录）
 - `lib/article-db/` — 核心业务层：repository(~3200行 Postgres ORM)、ingestion-runner、auth
-- `lib/domain/` — 领域模型、URL 去重、平台识别
+- `lib/domain/` — 领域模型、URL 去重、平台识别、文章身份识别(article-identity)
 - `lib/fetch/` — 抓取层：RSS 解析、反检测基础设施（指纹伪装、指数退避、自适应限流）
 - `lib/llm/` — LLM 推理：DeepSeek 客户端、文章评估器、摘要生成
 - `lib/process/` — 处理管线：去重、规范化、信息聚类
@@ -61,6 +61,7 @@ Cron/手动触发 → loadSources(config/sources.yaml, 46+ 源)
 - `lib/cache/` — LRU 评估缓存
 - `config/` — YAML 配置（sources、scoring、tagging、article_types）
 - `db/migrations/` — PostgreSQL schema 迁移脚本（001-008）
+- `scripts/` — 运维脚本（如微信归档修复 repair-wechat-archive）
 - `extraction-worker/` — 独立 Playwright 提取服务（Instagram、小红书、YouTube、B站）
 - `tests-ts/` — Vitest 测试（30+ 文件）
 

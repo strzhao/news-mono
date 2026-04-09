@@ -35,6 +35,7 @@ describe("article-db archive-list route", () => {
           selected_at: "2026-03-01T01:02:00.000Z",
           is_selected: true,
           source_id: "s1",
+          source_channel: "rss",
           source_name: "Source",
           source_host: "example.com",
           title: "Title",

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { Article, SourceConfig } from "@/lib/domain/models";
+import { currentDateInTimezone, getWechatFreshnessMaxAgeDays, isPublishedWithinReportWindow } from "@/lib/domain/article-identity";
 import { retryWithBackoff } from "./retry";
 
 const TAG_RE = /<[^>]+>/g;
@@ -121,6 +122,15 @@ function expectedAuthor(source: SourceConfig): string {
   return String(source.wechatSogouAuthor || "").trim() || normalizeWechatSourceName(source.name);
 }
 
+function comparePublishedAtDesc(
+  left: { publishedAt: Date | null },
+  right: { publishedAt: Date | null },
+): number {
+  const leftTs = left.publishedAt?.getTime() || 0;
+  const rightTs = right.publishedAt?.getTime() || 0;
+  return rightTs - leftTs;
+}
+
 function extractEntries(
   html: string,
   targetAuthor: string,
@@ -165,7 +175,7 @@ function extractEntries(
     });
   }
 
-  return entries;
+  return entries.sort(comparePublishedAtDesc);
 }
 
 function extractMpUrlFromSogouRedirectHtml(html: string): string {
@@ -182,14 +192,19 @@ export function shouldUseWechatSogou(source: SourceConfig): boolean {
 
 export async function fetchWechatSogouArticles(
   source: SourceConfig,
-  options: { timeoutMs: number; maxItems: number },
+  options: { timeoutMs: number; maxItems: number; referenceDate?: string; timezoneName?: string },
 ): Promise<Article[]> {
   let cookieHeader = "";
   const searchUrl = buildSearchUrl(source);
   const searchPage = await fetchTextWithTimeout(searchUrl, options.timeoutMs, cookieHeader);
   cookieHeader = searchPage.cookieHeader;
 
-  const items = extractEntries(searchPage.text, expectedAuthor(source)).slice(0, Math.max(0, options.maxItems));
+  const timezoneName = String(options.timezoneName || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+  const referenceDate = String(options.referenceDate || "").trim() || currentDateInTimezone(timezoneName);
+  const maxAgeDays = getWechatFreshnessMaxAgeDays(String(process.env.WECHAT_SOGOU_MAX_AGE_DAYS || ""));
+  const items = extractEntries(searchPage.text, expectedAuthor(source))
+    .filter((item) => isPublishedWithinReportWindow(item.publishedAt, referenceDate, maxAgeDays, timezoneName))
+    .slice(0, Math.max(0, options.maxItems));
   const articles: Article[] = [];
   const seenUrls = new Set<string>();
 

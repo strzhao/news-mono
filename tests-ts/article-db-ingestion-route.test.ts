@@ -96,6 +96,36 @@ describe("article-db ingestion route", () => {
     expect(payload.jitter_delay_ms).toBe(0);
   });
 
+  it("accepts Vercel cron header without bearer secret", async () => {
+    process.env.CRON_SECRET = "expected";
+    vi.mocked(runIngestionWithResult).mockResolvedValue({
+      ok: true,
+      runId: "run_cron",
+      reportDate: "2026-03-01",
+      timezone: "Asia/Shanghai",
+      fetchedCount: 10,
+      dedupedCount: 8,
+      evaluatedCount: 7,
+      selectedCount: 4,
+      qualityThreshold: 62,
+      stats: {},
+      errorMessage: "",
+    });
+
+    const response = await GET(
+      new Request("https://example.com/api/v1/ingestion/run?skip_jitter=1", {
+        headers: {
+          "x-vercel-cron": "1",
+        },
+      }),
+    );
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.trigger_type).toBe("cron");
+  });
+
   it("applies cron jitter delay before ingestion execution", async () => {
     process.env.CRON_SECRET = "expected";
     process.env.INGESTION_CRON_JITTER_MAX_SECONDS = "1";

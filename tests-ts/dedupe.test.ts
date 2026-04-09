@@ -35,4 +35,32 @@ describe("dedupe", () => {
     expect(deduped).toHaveLength(1);
     expect(stats.urlDuplicates).toBe(1);
   });
+
+  it("dedupeArticles collapses wechat signed urls into one article", () => {
+    const baseArticle = {
+      id: "1",
+      title: "分享10个你可能不知道的Claude Code隐藏命令.",
+      url: "https://mp.weixin.qq.com/s?new=1&signature=abc&src=11&timestamp=1&ver=1",
+      infoUrl: "https://mp.weixin.qq.com/s?new=1&signature=abc&src=11&timestamp=1&ver=1",
+      sourceId: "wechat_khazix0918",
+      sourceName: "Source",
+      sourceType: "wechat",
+      publishedAt: new Date("2026-03-20T02:18:41.000Z"),
+      summaryRaw: "",
+      leadParagraph: "",
+      contentText: "",
+      tags: [],
+      primaryType: "",
+      secondaryTypes: [],
+    };
+
+    const [deduped, stats] = dedupeArticles(
+      [baseArticle, { ...baseArticle, id: "2", url: "https://mp.weixin.qq.com/s?new=1&signature=xyz&src=11&timestamp=2&ver=2", infoUrl: "https://mp.weixin.qq.com/s?new=1&signature=xyz&src=11&timestamp=2&ver=2" }],
+      0.93,
+      true,
+    ) as any;
+
+    expect(deduped).toHaveLength(1);
+    expect(stats.urlDuplicates).toBe(1);
+  });
 });

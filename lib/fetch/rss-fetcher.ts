@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import Parser from "rss-parser";
+import { currentDateInTimezone, getWechatFreshnessMaxAgeDays, isPublishedWithinReportWindow } from "@/lib/domain/article-identity";
 import { Article, SourceConfig } from "@/lib/domain/models";
 import { gaussianJitter } from "./timing";
 import { retryWithBackoff } from "./retry";
@@ -179,6 +180,8 @@ export async function fetchArticles(
     maxPerSource?: number;
     perSourceLimits?: Record<string, number>;
     totalBudget?: number;
+    reportDate?: string;
+    timezoneName?: string;
   } = {},
 ): Promise<FetchResult> {
   const timeoutSeconds = options.timeoutSeconds ?? 20;
@@ -188,6 +191,9 @@ export async function fetchArticles(
   const maxPerSource = options.maxPerSource ?? 25;
   const perSourceLimits = options.perSourceLimits || {};
   const totalBudget = options.totalBudget ?? 0;
+  const timezoneName = String(options.timezoneName || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+  const referenceDate = String(options.reportDate || "").trim() || currentDateInTimezone(timezoneName);
+  const wechatMaxAgeDays = getWechatFreshnessMaxAgeDays(String(process.env.WECHAT_SOGOU_MAX_AGE_DAYS || ""));
 
   const articles: Article[] = [];
   const sourceStats: Record<string, SourceFetchStat> = {};
@@ -219,6 +225,8 @@ export async function fetchArticles(
             const htmlArticles = await fetchWechatSogouArticles(source, {
               timeoutMs: Math.min(timeoutMs, remainingMs),
               maxItems: perSourceCap,
+              referenceDate,
+              timezoneName,
             });
             if (htmlArticles.length || source.fallbackFetchMethod !== "rss") {
               articles.push(...htmlArticles);
@@ -254,7 +262,14 @@ export async function fetchArticles(
 
           const title = cleanHtmlText(String(entry.title || ""));
           const url = String(entry.link || "").trim();
+          const publishedAt = parsePublishedAt(entry, source.sourceType !== "wechat");
           if (!title || !url) {
+            continue;
+          }
+          if (
+            source.sourceType === "wechat"
+            && !isPublishedWithinReportWindow(publishedAt, referenceDate, wechatMaxAgeDays, timezoneName)
+          ) {
             continue;
           }
 
@@ -269,7 +284,7 @@ export async function fetchArticles(
             sourceId: source.id,
             sourceName: source.name,
             sourceType: source.sourceType || "rss",
-            publishedAt: parsePublishedAt(entry, true),
+            publishedAt,
             summaryRaw: summary,
             leadParagraph: lead,
             contentText,

@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import { URL } from "node:url";
+import { normalizeArticleUrl } from "@/lib/domain/article-identity";
 import { buildUpstashClient, buildUpstashClientOrNone, parseHashResult as parseHashRaw } from "@/lib/infra/upstash";
 
 export const DEFAULT_TTL_SECONDS = 120 * 24 * 3600;
 
-const TRACKING_PREFIXES = ["utm_", "spm", "fbclid", "gclid", "ref"];
+
 const BOT_UA_TOKENS = [
   "bot",
   "spider",
@@ -68,27 +69,7 @@ export function lastNDateKeys(days: number): string[] {
 }
 
 export function normalizeUrl(raw: string): string {
-  try {
-    const parsed = new URL(raw);
-    const entries: Array<[string, string]> = [];
-    parsed.searchParams.forEach((value, key) => {
-      const lower = key.toLowerCase();
-      if (TRACKING_PREFIXES.some((prefix) => lower.startsWith(prefix))) return;
-      entries.push([key, value]);
-    });
-    entries.sort(([a], [b]) => a.localeCompare(b));
-    const query = new URLSearchParams(entries);
-    const pathname = parsed.pathname.replace(/\/$/, "") || "/";
-    const normalized = new URL(parsed.toString());
-    normalized.protocol = parsed.protocol.toLowerCase();
-    normalized.hostname = parsed.hostname.toLowerCase();
-    normalized.pathname = pathname;
-    normalized.search = query.toString();
-    normalized.hash = "";
-    return normalized.toString();
-  } catch {
-    return raw;
-  }
+  return normalizeArticleUrl(raw);
 }
 
 export function canonicalQuery(params: Record<string, string>): string {

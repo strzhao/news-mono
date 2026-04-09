@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import type { PoolClient } from "pg";
+import { isWechatArticleIdentityCandidate, normalizeArticleTitleKey } from "@/lib/domain/article-identity";
 import { Article, ArticleAssessment, SourceConfig } from "@/lib/domain/models";
 import { normalizeUrl } from "@/lib/domain/tracker-common";
 import { getPgPool } from "@/lib/infra/postgres";
+import { planWechatArchiveRepairs, type WechatArchiveRepairCandidate } from "@/lib/article-db/wechat-archive-repair";
 import {
   ArticleContentSnapshot,
   ArticleSummaryRow,
@@ -66,6 +68,78 @@ function toCanonicalUrl(article: Article): string {
 
 function stableArticleId(canonicalUrl: string): string {
   return crypto.createHash("sha256").update(canonicalUrl).digest("hex").slice(0, 24);
+}
+
+function isWechatArticleForUpsert(article: Article, canonicalUrl: string): boolean {
+  return isWechatArticleIdentityCandidate({
+    sourceType: article.sourceType,
+    sourceId: article.sourceId,
+    url: canonicalUrl || article.url,
+    infoUrl: article.infoUrl,
+  });
+}
+
+async function findExistingArticleForUpsert(
+  client: PoolClient,
+  article: Article,
+  canonicalUrl: string,
+): Promise<{ id: string; canonicalUrl: string; matchedByCanonical: boolean } | null> {
+  const directMatch = await client.query(
+    `
+    SELECT id, canonical_url
+    FROM articles
+    WHERE canonical_url = $1
+    LIMIT 1
+  `,
+    [canonicalUrl],
+  );
+
+  const directRow = directMatch.rows[0] as Record<string, unknown> | undefined;
+  if (directRow) {
+    return {
+      id: String(directRow.id || ""),
+      canonicalUrl: String(directRow.canonical_url || canonicalUrl),
+      matchedByCanonical: true,
+    };
+  }
+
+  if (!isWechatArticleForUpsert(article, canonicalUrl)) {
+    return null;
+  }
+  if (!article.publishedAt || !Number.isFinite(article.publishedAt.getTime())) {
+    return null;
+  }
+
+  const titleKey = normalizeArticleTitleKey(article.title);
+  if (!titleKey) {
+    return null;
+  }
+
+  const candidates = await client.query(
+    `
+    SELECT id, canonical_url, title
+    FROM articles
+    WHERE source_id = $1
+      AND published_at = $2::timestamptz
+    ORDER BY updated_at DESC, created_at DESC
+    LIMIT 20
+  `,
+    [article.sourceId, article.publishedAt.toISOString()],
+  );
+
+  for (const raw of candidates.rows) {
+    const row = raw as Record<string, unknown>;
+    if (normalizeArticleTitleKey(String(row.title || "")) !== titleKey) {
+      continue;
+    }
+    return {
+      id: String(row.id || ""),
+      canonicalUrl: String(row.canonical_url || canonicalUrl),
+      matchedByCanonical: false,
+    };
+  }
+
+  return null;
 }
 
 function normalizeDate(date: string): string {
@@ -707,10 +781,48 @@ export async function upsertArticles(articles: Article[]): Promise<Record<string
       if (!canonicalUrl) {
         continue;
       }
-      const articleId = stableArticleId(canonicalUrl);
       const infoUrl = String(article.infoUrl || article.url || "").trim();
       const originalUrl = String(article.url || infoUrl).trim();
       const sourceHost = toHost(canonicalUrl);
+      const existing = await findExistingArticleForUpsert(client, article, canonicalUrl);
+
+      if (existing?.id) {
+        await client.query(
+          `
+          UPDATE articles
+          SET
+            source_id = $2,
+            canonical_url = $3,
+            original_url = $4,
+            info_url = $5,
+            title = $6,
+            published_at = $7,
+            summary_raw = $8,
+            lead_paragraph = $9,
+            content_text = $10,
+            source_host = $11,
+            updated_at = NOW()
+          WHERE id = $1
+        `,
+          [
+            existing.id,
+            article.sourceId,
+            existing.matchedByCanonical ? canonicalUrl : existing.canonicalUrl,
+            originalUrl,
+            infoUrl,
+            article.title,
+            article.publishedAt ? article.publishedAt.toISOString() : null,
+            article.summaryRaw,
+            article.leadParagraph,
+            article.contentText,
+            sourceHost,
+          ],
+        );
+        idMap[article.id] = existing.id;
+        continue;
+      }
+
+      const articleId = stableArticleId(canonicalUrl);
 
       await client.query(
         `
@@ -762,6 +874,184 @@ export async function upsertArticles(articles: Article[]): Promise<Record<string
   });
 
   return idMap;
+}
+
+export interface RepairWechatDailyArchivesResult {
+  fromDate: string;
+  toDate: string;
+  timezoneName: string;
+  maxAgeDays: number;
+  candidateCount: number;
+  staleRowCount: number;
+  duplicateGroupCount: number;
+  duplicateRowCount: number;
+  analyzedDeleted: number;
+  highQualityDeleted: number;
+  analyzedUpserted: number;
+  highQualityUpserted: number;
+  survivorArticleCount: number;
+}
+
+export async function repairWechatDailyArchives(params: {
+  fromDate: string;
+  toDate: string;
+  timezoneName?: string;
+  maxAgeDays: number;
+}): Promise<RepairWechatDailyArchivesResult> {
+  await ensureArticleDbSchema();
+  const fromDate = normalizeDate(params.fromDate);
+  const toDate = normalizeDate(params.toDate);
+  const timezoneName = String(params.timezoneName || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+  const maxAgeDays = boundedScore(params.maxAgeDays, 3);
+  const pool = getPgPool();
+
+  const rows = await pool.query(
+    `
+    SELECT
+      d.date::text AS date,
+      d.article_id,
+      d.quality_score_snapshot AS analyzed_quality_score_snapshot,
+      d.rank_score AS analyzed_rank_score,
+      d.analyzed_at,
+      COALESCE(h.quality_score_snapshot, 0) AS selected_quality_score_snapshot,
+      COALESCE(h.rank_score, 0) AS selected_rank_score,
+      COALESCE(h.selected_at::text, '') AS selected_at,
+      a.source_id,
+      a.title,
+      COALESCE(a.published_at::text, '') AS published_at,
+      a.canonical_url,
+      a.original_url,
+      a.info_url,
+      a.summary_raw,
+      a.lead_paragraph,
+      a.content_text,
+      a.content_full_text,
+      a.content_full_html,
+      a.updated_at::text AS updated_at
+    FROM daily_analyzed_articles d
+    INNER JOIN articles a ON a.id = d.article_id
+    INNER JOIN sources s ON s.id = a.source_id
+    LEFT JOIN daily_high_quality_articles h
+      ON h.date = d.date
+     AND h.article_id = d.article_id
+    WHERE s.type = 'wechat'
+      AND d.date BETWEEN $1::date AND $2::date
+    ORDER BY d.date ASC, d.analyzed_at DESC
+  `,
+    [fromDate, toDate],
+  );
+
+  const candidates: WechatArchiveRepairCandidate[] = rows.rows.map((raw) => {
+    const row = raw as Record<string, unknown>;
+    return {
+      date: toDateString(row.date),
+      articleId: String(row.article_id || ""),
+      sourceId: String(row.source_id || ""),
+      title: String(row.title || ""),
+      publishedAt: toIso(row.published_at),
+      canonicalUrl: String(row.canonical_url || ""),
+      originalUrl: String(row.original_url || ""),
+      infoUrl: String(row.info_url || ""),
+      summaryRaw: String(row.summary_raw || ""),
+      leadParagraph: String(row.lead_paragraph || ""),
+      contentText: String(row.content_text || ""),
+      contentFullText: String(row.content_full_text || ""),
+      contentFullHtml: String(row.content_full_html || ""),
+      analyzedAt: toIso(row.analyzed_at),
+      analyzedRankScore: Number(row.analyzed_rank_score || 0),
+      analyzedQualityScore: Number(row.analyzed_quality_score_snapshot || 0),
+      selectedAt: toIso(row.selected_at),
+      selectedRankScore: Number(row.selected_rank_score || 0),
+      selectedQualityScore: Number(row.selected_quality_score_snapshot || 0),
+      updatedAt: toIso(row.updated_at),
+    };
+  });
+
+  const plan = planWechatArchiveRepairs(candidates, {
+    maxAgeDays,
+    timezoneName,
+  });
+
+  await withTx(async (client) => {
+    for (const row of plan.analyzedUpserts) {
+      await client.query(
+        `
+        INSERT INTO daily_analyzed_articles (date, article_id, quality_score_snapshot, rank_score, analyzed_at)
+        VALUES ($1::date, $2, $3, $4, NOW())
+        ON CONFLICT (date, article_id)
+        DO UPDATE SET
+          quality_score_snapshot = GREATEST(daily_analyzed_articles.quality_score_snapshot, EXCLUDED.quality_score_snapshot),
+          rank_score = GREATEST(daily_analyzed_articles.rank_score, EXCLUDED.rank_score),
+          analyzed_at = NOW()
+      `,
+        [row.date, row.articleId, row.qualityScoreSnapshot, row.rankScore],
+      );
+    }
+
+    for (const row of plan.highQualityUpserts) {
+      await client.query(
+        `
+        INSERT INTO daily_high_quality_articles (date, article_id, quality_score_snapshot, rank_score, selected_at)
+        VALUES ($1::date, $2, $3, $4, NOW())
+        ON CONFLICT (date, article_id)
+        DO UPDATE SET
+          quality_score_snapshot = GREATEST(daily_high_quality_articles.quality_score_snapshot, EXCLUDED.quality_score_snapshot),
+          rank_score = GREATEST(daily_high_quality_articles.rank_score, EXCLUDED.rank_score),
+          selected_at = NOW()
+      `,
+        [row.date, row.articleId, row.qualityScoreSnapshot, row.rankScore],
+      );
+    }
+
+    for (const row of plan.highQualityDeletes) {
+      await client.query(
+        `
+        DELETE FROM daily_high_quality_articles
+        WHERE date = $1::date
+          AND article_id = $2
+      `,
+        [row.date, row.articleId],
+      );
+    }
+
+    for (const row of plan.analyzedDeletes) {
+      await client.query(
+        `
+        DELETE FROM daily_analyzed_articles
+        WHERE date = $1::date
+          AND article_id = $2
+      `,
+        [row.date, row.articleId],
+      );
+    }
+
+    if (plan.survivorArticleIds.length) {
+      await client.query(
+        `
+        UPDATE articles
+        SET updated_at = NOW()
+        WHERE id = ANY($1::text[])
+      `,
+        [plan.survivorArticleIds],
+      );
+    }
+  });
+
+  return {
+    fromDate,
+    toDate,
+    timezoneName,
+    maxAgeDays,
+    candidateCount: plan.candidateCount,
+    staleRowCount: plan.staleRowCount,
+    duplicateGroupCount: plan.duplicateGroupCount,
+    duplicateRowCount: plan.duplicateRowCount,
+    analyzedDeleted: plan.analyzedDeletes.length,
+    highQualityDeleted: plan.highQualityDeletes.length,
+    analyzedUpserted: plan.analyzedUpserts.length,
+    highQualityUpserted: plan.highQualityUpserts.length,
+    survivorArticleCount: plan.survivorArticleIds.length,
+  };
 }
 
 export async function listArticleContentTargets(

@@ -37,6 +37,7 @@ describe("article-db high-quality route", () => {
           image_url: "",
           source_host: "example.com",
           source_id: "source_1",
+          source_channel: "rss",
           source_name: "Source",
           date: "2026-03-01",
           digest_id: "article_db_2026-03-01",

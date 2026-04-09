@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
+import type { SourceConfig } from "@/lib/domain/models";
 import { fetchArticles } from "@/lib/fetch/rss-fetcher";
-import { SourceConfig } from "@/lib/domain/models";
 
 const originalFetch = globalThis.fetch;
 
@@ -59,7 +59,10 @@ describe("rss fetcher", () => {
 
     const startedAt = Date.now();
     const result = await fetchArticles(
-      [source("slow", "https://slow.example.com/rss"), source("fast", "https://fast.example.com/rss")],
+      [
+        source("slow", "https://slow.example.com/rss"),
+        source("fast", "https://fast.example.com/rss"),
+      ],
       {
         timeoutSeconds: 1,
       },
@@ -437,7 +440,12 @@ describe("rss fetcher", () => {
           wechatSogouQuery: "QbitAI",
         },
       ],
-      { timeoutSeconds: 2, maxPerSource: 1, reportDate: "2026-04-07", timezoneName: "Asia/Shanghai" },
+      {
+        timeoutSeconds: 2,
+        maxPerSource: 1,
+        reportDate: "2026-04-07",
+        timezoneName: "Asia/Shanghai",
+      },
     );
 
     expect(result.articles).toHaveLength(1);
@@ -540,12 +548,13 @@ describe("rss fetcher", () => {
   </channel>
 </rss>`;
 
-    globalThis.fetch = (async () => new Response(rss, {
-      status: 200,
-      headers: {
-        "content-type": "application/rss+xml",
-      },
-    })) as typeof fetch;
+    globalThis.fetch = (async () =>
+      new Response(rss, {
+        status: 200,
+        headers: {
+          "content-type": "application/rss+xml",
+        },
+      })) as typeof fetch;
 
     const result = await fetchArticles(
       [

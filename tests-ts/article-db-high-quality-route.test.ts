@@ -16,7 +16,9 @@ describe("article-db high-quality route", () => {
 
   it("returns 401 when api token is enabled but authorization header is missing", async () => {
     process.env.ARTICLE_DB_API_TOKEN = "secret-token";
-    const response = await GET(new Request("https://example.com/api/v1/articles/high-quality?date=2026-03-01"));
+    const response = await GET(
+      new Request("https://example.com/api/v1/articles/high-quality?date=2026-03-01"),
+    );
     const payload = (await response.json()) as Record<string, unknown>;
 
     expect(response.status).toBe(401);
@@ -54,11 +56,14 @@ describe("article-db high-quality route", () => {
       ],
     });
 
-    const request = new Request("https://example.com/api/v1/articles/high-quality?date=2026-03-01&limit=20&offset=0", {
-      headers: {
-        Authorization: "Bearer secret-token",
+    const request = new Request(
+      "https://example.com/api/v1/articles/high-quality?date=2026-03-01&limit=20&offset=0",
+      {
+        headers: {
+          Authorization: "Bearer secret-token",
+        },
       },
-    });
+    );
 
     const response = await GET(request);
     const payload = (await response.json()) as Record<string, unknown>;
@@ -83,11 +88,14 @@ describe("article-db high-quality route", () => {
       items: [],
     });
 
-    const request = new Request("https://example.com/api/v1/articles/high-quality?date=2026-03-01&quality_tier=general", {
-      headers: {
-        Authorization: "Bearer secret-token",
+    const request = new Request(
+      "https://example.com/api/v1/articles/high-quality?date=2026-03-01&quality_tier=general",
+      {
+        headers: {
+          Authorization: "Bearer secret-token",
+        },
       },
-    });
+    );
 
     const response = await GET(request);
     const payload = (await response.json()) as Record<string, unknown>;

@@ -12,7 +12,11 @@ export async function GET(
 ): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   const params = await context.params;
@@ -26,8 +30,16 @@ export async function GET(
     if (!detail) {
       return jsonResponse(404, { ok: false, error: "Not found" }, true);
     }
-    return jsonResponse(200, { ok: true, generated_at: new Date().toISOString(), item: detail }, true);
+    return jsonResponse(
+      200,
+      { ok: true, generated_at: new Date().toISOString(), item: detail },
+      true,
+    );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

@@ -45,7 +45,9 @@ export function computeBehaviorMultipliers(
     return {};
   }
 
-  const baseline = Object.values(decayedScores).reduce((sum, score) => sum + score, 0) / Object.keys(decayedScores).length;
+  const baseline =
+    Object.values(decayedScores).reduce((sum, score) => sum + score, 0) /
+    Object.keys(decayedScores).length;
   if (baseline <= 0) {
     return Object.fromEntries(Object.keys(decayedScores).map((sourceId) => [sourceId, 1]));
   }
@@ -70,7 +72,10 @@ export function selectPreferredSources(
 
   const totals: Array<[string, number]> = [];
   for (const [sourceId, daily] of Object.entries(sourceDailyClicks)) {
-    const total = Object.values(daily || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(value || 0)), 0);
+    const total = Object.values(daily || {}).reduce(
+      (sum, value) => sum + Math.max(0, Math.trunc(value || 0)),
+      0,
+    );
     if (total >= minClicks) {
       totals.push([sourceId, total]);
     }

@@ -1,13 +1,13 @@
 import crypto from "node:crypto";
-import { ArticleEvalCache } from "@/lib/cache/article-eval-cache";
+import type { ArticleEvalCache } from "@/lib/cache/article-eval-cache";
 import {
-  Article,
-  ArticleAssessment,
+  type Article,
+  type ArticleAssessment,
   WORTH_MUST_READ,
   WORTH_SKIP,
   WORTH_WORTH_READING,
 } from "@/lib/domain/models";
-import { DeepSeekClient, DeepSeekError } from "@/lib/llm/deepseek-client";
+import { type DeepSeekClient, DeepSeekError } from "@/lib/llm/deepseek-client";
 
 const VALID_WORTH = new Set([WORTH_MUST_READ, WORTH_WORTH_READING, WORTH_SKIP]);
 const ASSESSMENT_SCHEMA_VERSION = "assessment_r3";
@@ -68,7 +68,7 @@ function normalizeTagKey(value: string): string {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -78,7 +78,7 @@ function normalizeTagValue(value: string): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -186,7 +186,8 @@ function calibrateConfidence(params: {
   let confidence = coerceConfidence(params.rawConfidence);
   const hasEvidence = params.evidenceSignals.some((item) => item && item !== "none");
   const hasActionHint = Boolean(params.actionHint.trim());
-  const hasSpecificType = params.primaryType !== "other" || params.secondaryTypes.some((item) => item !== "other");
+  const hasSpecificType =
+    params.primaryType !== "other" || params.secondaryTypes.some((item) => item !== "other");
   const hasTagGroups = Object.keys(params.tagGroups).length > 0;
 
   if (!hasEvidence) confidence = Math.min(confidence, 0.75);
@@ -291,9 +292,14 @@ export class ArticleEvaluator {
   ) {
     const basePromptVersion = String(process.env.AI_EVAL_PROMPT_VERSION || "v7").trim() || "v7";
     this.promptVersion = `${basePromptVersion}:${ASSESSMENT_SCHEMA_VERSION}`;
-    this.maxRetries = Math.max(0, Number.parseInt(String(process.env.AI_EVAL_MAX_RETRIES || "2"), 10) || 0);
+    this.maxRetries = Math.max(
+      0,
+      Number.parseInt(String(process.env.AI_EVAL_MAX_RETRIES || "2"), 10) || 0,
+    );
 
-    const deduped = Array.from(new Set(this.articleTypes.map((item) => String(item || "").trim()).filter(Boolean)));
+    const deduped = Array.from(
+      new Set(this.articleTypes.map((item) => String(item || "").trim()).filter(Boolean)),
+    );
     if (!deduped.includes("other")) deduped.push("other");
     this.articleTypes = deduped.length ? deduped : ["other"];
   }
@@ -316,10 +322,28 @@ export class ArticleEvaluator {
   ): Promise<ArticleEvalBatchResult> {
     const assessments: Record<string, ArticleAssessment> = {};
     const startedAt = Date.now();
-    const maxWallTimeMs = Math.max(10_000, Number.parseInt(String(options.maxWallTimeMs || 180_000), 10) || 180_000);
-    const failedSampleLimit = boundedInt(String(process.env.AI_OBS_FAILED_SAMPLE_LIMIT || "20"), 20, 0, 120);
-    const errorMaxChars = boundedInt(String(process.env.AI_OBS_ERROR_MSG_MAX_CHARS || "240"), 240, 40, 2000);
-    const modelOutputMaxChars = boundedInt(String(process.env.AI_OBS_MODEL_OUTPUT_MAX_CHARS || "320"), 320, 40, 4000);
+    const maxWallTimeMs = Math.max(
+      10_000,
+      Number.parseInt(String(options.maxWallTimeMs || 180_000), 10) || 180_000,
+    );
+    const failedSampleLimit = boundedInt(
+      String(process.env.AI_OBS_FAILED_SAMPLE_LIMIT || "20"),
+      20,
+      0,
+      120,
+    );
+    const errorMaxChars = boundedInt(
+      String(process.env.AI_OBS_ERROR_MSG_MAX_CHARS || "240"),
+      240,
+      40,
+      2000,
+    );
+    const modelOutputMaxChars = boundedInt(
+      String(process.env.AI_OBS_MODEL_OUTPUT_MAX_CHARS || "320"),
+      320,
+      40,
+      4000,
+    );
     const successLatenciesMs: number[] = [];
     const telemetry: ArticleEvalTelemetry = {
       total_candidates: articles.length,
@@ -395,7 +419,8 @@ export class ArticleEvaluator {
         telemetry.evaluated_failed += 1;
         telemetry.retry_count_total += retriesUsed;
         const errorType = classifyError(lastError);
-        telemetry.error_type_counts[errorType] = Number(telemetry.error_type_counts[errorType] || 0) + 1;
+        telemetry.error_type_counts[errorType] =
+          Number(telemetry.error_type_counts[errorType] || 0) + 1;
         if (telemetry.failed_samples.length < failedSampleLimit) {
           telemetry.failed_samples.push({
             article_id: article.id,
@@ -405,13 +430,14 @@ export class ArticleEvaluator {
             truncated_model_output: extractModelOutput(lastError, modelOutputMaxChars),
           });
         }
-        continue;
       }
     }
 
     telemetry.latency_ms_p50 = percentileMs(successLatenciesMs, 0.5);
     telemetry.latency_ms_p90 = percentileMs(successLatenciesMs, 0.9);
-    telemetry.latency_ms_max = successLatenciesMs.length ? Math.max(...successLatenciesMs.map((value) => Math.round(value))) : 0;
+    telemetry.latency_ms_max = successLatenciesMs.length
+      ? Math.max(...successLatenciesMs.map((value) => Math.round(value)))
+      : 0;
 
     await this.cache.prune(5000);
     return {
@@ -478,7 +504,9 @@ export class ArticleEvaluator {
     }
 
     const evidenceSignalsRaw = Array.isArray(row.evidence_signals) ? row.evidence_signals : [];
-    const evidenceSignals = Array.from(new Set(evidenceSignalsRaw.map((item) => String(item || "").trim()).filter(Boolean)));
+    const evidenceSignals = Array.from(
+      new Set(evidenceSignalsRaw.map((item) => String(item || "").trim()).filter(Boolean)),
+    );
     if (!evidenceSignals.length) {
       evidenceSignals.push("none");
     }
@@ -488,7 +516,13 @@ export class ArticleEvaluator {
     if (!oneLineSummary) throw new DeepSeekError("DeepSeek returned empty one_line_summary");
     if (!reasonShort) throw new DeepSeekError("DeepSeek returned empty reason_short");
 
-    const bestForRoles = Array.from(new Set(parseStringArray(row.best_for_roles).map((item) => item.trim()).filter(Boolean)));
+    const bestForRoles = Array.from(
+      new Set(
+        parseStringArray(row.best_for_roles)
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
 
     const typeMap = buildTypeMap(this.articleTypes);
     let primaryType = resolveType(typeMap, row.primary_type) || "other";
@@ -509,7 +543,9 @@ export class ArticleEvaluator {
     );
 
     if (primaryType === "other") {
-      const promotable = typeCandidates.find((item) => item !== "other") || secondaryTypes.find((item) => item !== "other");
+      const promotable =
+        typeCandidates.find((item) => item !== "other") ||
+        secondaryTypes.find((item) => item !== "other");
       if (promotable) {
         primaryType = promotable;
         secondaryTypes = secondaryTypes.filter((item) => item !== promotable);
@@ -521,17 +557,27 @@ export class ArticleEvaluator {
     const companyImpact = pickScore(row, ["company_impact"], qualityScore);
     const teamImpact = pickScore(row, ["team_impact"], qualityScore);
     const personalImpact = pickScore(row, ["personal_impact"], qualityScore);
-    const executionClarity = pickScore(row, ["execution_clarity", "actionability_score"], qualityScore);
+    const executionClarity = pickScore(
+      row,
+      ["execution_clarity", "actionability_score"],
+      qualityScore,
+    );
     const novelty = pickScore(row, ["novelty", "novelty_score"], 0);
     const clarity = pickScore(row, ["clarity_score"], 0);
     const parsedTagGroups = parseTagGroups(row.tag_groups);
 
     const inferredTagGroups: Record<string, string[]> = { ...parsedTagGroups };
-    const typeTags = Array.from(new Set([primaryType, ...secondaryTypes].filter(Boolean).map((item) => normalizeTagValue(item))));
+    const typeTags = Array.from(
+      new Set(
+        [primaryType, ...secondaryTypes].filter(Boolean).map((item) => normalizeTagValue(item)),
+      ),
+    );
     if (typeTags.length && !inferredTagGroups.type) {
       inferredTagGroups.type = typeTags;
     }
-    const roleTags = Array.from(new Set(bestForRoles.map((item) => normalizeTagValue(item)).filter(Boolean)));
+    const roleTags = Array.from(
+      new Set(bestForRoles.map((item) => normalizeTagValue(item)).filter(Boolean)),
+    );
     if (roleTags.length && !inferredTagGroups.role) {
       inferredTagGroups.role = roleTags.slice(0, 12);
     }

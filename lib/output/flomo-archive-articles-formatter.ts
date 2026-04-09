@@ -20,7 +20,9 @@ export interface FlomoArchiveArticleSummary {
 }
 
 function normalizeText(value: string, maxLen: number): string {
-  const normalized = String(value || "").replace(/\s+/g, " ").trim();
+  const normalized = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!normalized) {
     return "";
   }
@@ -42,7 +44,7 @@ function normalizeTagKey(value: string): string {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -135,7 +137,8 @@ function collectFlomoTags(params: {
   const countByTag = new Map<string, number>();
 
   articles.forEach((article) => {
-    const tagGroups = article.tag_groups && typeof article.tag_groups === "object" ? article.tag_groups : {};
+    const tagGroups =
+      article.tag_groups && typeof article.tag_groups === "object" ? article.tag_groups : {};
     Object.entries(tagGroups)
       .sort(([left], [right]) => String(left).localeCompare(String(right)))
       .forEach(([groupKey, tags]) => {
@@ -163,7 +166,9 @@ function collectFlomoTags(params: {
 }
 
 function trackerBaseUrl(): string {
-  return String(process.env.TRACKER_BASE_URL || "").trim().replace(/\/$/, "");
+  return String(process.env.TRACKER_BASE_URL || "")
+    .trim()
+    .replace(/\/$/, "");
 }
 
 function trackerSigningSecret(): string {

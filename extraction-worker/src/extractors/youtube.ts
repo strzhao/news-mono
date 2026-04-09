@@ -3,10 +3,9 @@
  * Also handles Bilibili via the same yt-dlp interface.
  */
 import { execFile } from "node:child_process";
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join, extname } from "node:path";
+import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { mkdtemp, rm } from "node:fs/promises";
+import { extname, join } from "node:path";
 import { uploadFileToBlob } from "../upload.js";
 
 interface ExtractedResource {
@@ -54,19 +53,25 @@ const MIME_MAP: Record<string, string> = {
 
 function exec(cmd: string, args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { cwd, maxBuffer: 10 * 1024 * 1024, timeout: 300_000 }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(`${cmd} failed: ${error.message}\nstderr: ${stderr}`));
-        return;
-      }
-      resolve(stdout);
-    });
+    execFile(
+      cmd,
+      args,
+      { cwd, maxBuffer: 10 * 1024 * 1024, timeout: 300_000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`${cmd} failed: ${error.message}\nstderr: ${stderr}`));
+          return;
+        }
+        resolve(stdout);
+      },
+    );
   });
 }
 
 /** Return --proxy args for yt-dlp if proxy is configured */
 export function ytdlpProxyArgs(_url: string): string[] {
-  const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || "";
+  const proxyUrl =
+    process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || "";
   if (!proxyUrl) return [];
   return ["--proxy", proxyUrl];
 }
@@ -83,18 +88,23 @@ function computeExpiresAt(ttlHours: number): string {
   return new Date(Date.now() + ttlHours * 3600 * 1000).toISOString();
 }
 
-export async function extractYouTube(url: string, taskId: string, blobTtlHours: number): Promise<ExtractionResult> {
+export async function extractYouTube(
+  url: string,
+  taskId: string,
+  blobTtlHours: number,
+): Promise<ExtractionResult> {
   const workDir = await mkdtemp(join(tmpdir(), "ytdlp-"));
 
   try {
     // Common args: use browser cookies for authenticated platforms (Bilibili etc.)
-    const cookieArgs = [
-      "--cookies-from-browser", "chrome",
-      ...ytdlpProxyArgs(url),
-    ];
+    const cookieArgs = ["--cookies-from-browser", "chrome", ...ytdlpProxyArgs(url)];
 
     // Step 1: Get metadata (no download)
-    const metaJson = await exec("yt-dlp", [...cookieArgs, "--dump-json", "--no-download", url], workDir);
+    const metaJson = await exec(
+      "yt-dlp",
+      [...cookieArgs, "--dump-json", "--no-download", url],
+      workDir,
+    );
     const meta = JSON.parse(metaJson);
 
     const metadata: ExtractionMetadata = {
@@ -102,36 +112,51 @@ export async function extractYouTube(url: string, taskId: string, blobTtlHours: 
       description: String(meta.description || "").slice(0, 2000),
       author: String(meta.uploader || meta.channel || ""),
       duration: Number(meta.duration) || undefined,
-      published_at: String(meta.upload_date || "").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3") || undefined,
+      published_at:
+        String(meta.upload_date || "").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3") || undefined,
       platform_id: String(meta.id || ""),
       tags: Array.isArray(meta.tags) ? meta.tags.slice(0, 20).map(String) : [],
     };
 
     // Step 2: Download video + thumbnail (subtitles may fail due to rate limiting)
-    await exec("yt-dlp", [
-      ...cookieArgs,
-      "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-      "--merge-output-format", "mp4",
-      "--write-thumbnail",
-      "--no-playlist",
-      "--ignore-errors",
-      "-o", "%(title).80s.%(ext)s",
-      url,
-    ], workDir);
+    await exec(
+      "yt-dlp",
+      [
+        ...cookieArgs,
+        "-f",
+        "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+        "--merge-output-format",
+        "mp4",
+        "--write-thumbnail",
+        "--no-playlist",
+        "--ignore-errors",
+        "-o",
+        "%(title).80s.%(ext)s",
+        url,
+      ],
+      workDir,
+    );
 
     // Step 3: Try subtitles separately (non-fatal)
     try {
-      await exec("yt-dlp", [
-        ...cookieArgs,
-        "--skip-download",
-        "--write-subs",
-        "--write-auto-sub",
-        "--sub-lang", "en,zh-Hans,zh-Hant,ja,ko",
-        "--convert-subs", "srt",
-        "--no-playlist",
-        "-o", "%(title).80s.%(ext)s",
-        url,
-      ], workDir);
+      await exec(
+        "yt-dlp",
+        [
+          ...cookieArgs,
+          "--skip-download",
+          "--write-subs",
+          "--write-auto-sub",
+          "--sub-lang",
+          "en,zh-Hans,zh-Hant,ja,ko",
+          "--convert-subs",
+          "srt",
+          "--no-playlist",
+          "-o",
+          "%(title).80s.%(ext)s",
+          url,
+        ],
+        workDir,
+      );
     } catch {
       console.log(`[${taskId}] Subtitle download failed (non-fatal), continuing...`);
     }

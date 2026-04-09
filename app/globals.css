@@ -1,27 +1,27 @@
 :root {
   /* Sage Design System */
-  --ink:          #1A1A18;
-  --paper:        #F7F6F1;
-  --mist:         #EBEBEA;
-  --smoke:        #8F8F8D;
-  --charcoal:     #595957;
-  --sage:         #3A7D68;
-  --sage-light:   #52A688;
-  --sage-mist:    #E8F2EE;
-  --amber:        #D4920A;
-  --vermillion:   #D94F3D;
-  --sky:          #3B87CC;
+  --ink: #1a1a18;
+  --paper: #f7f6f1;
+  --mist: #ebebea;
+  --smoke: #8f8f8d;
+  --charcoal: #595957;
+  --sage: #3a7d68;
+  --sage-light: #52a688;
+  --sage-mist: #e8f2ee;
+  --amber: #d4920a;
+  --vermillion: #d94f3d;
+  --sky: #3b87cc;
 
   /* Semantic aliases (backward compat) */
-  --bg:           var(--paper);
-  --panel:        #ffffff;
-  --ink-soft:     var(--charcoal);
-  --muted:        var(--smoke);
-  --line:         var(--mist);
-  --line-soft:    #f0f0ee;
-  --accent:       var(--sage);
+  --bg: var(--paper);
+  --panel: #ffffff;
+  --ink-soft: var(--charcoal);
+  --muted: var(--smoke);
+  --line: var(--mist);
+  --line-soft: #f0f0ee;
+  --accent: var(--sage);
   --accent-hover: var(--sage-light);
-  --danger:       var(--vermillion);
+  --danger: var(--vermillion);
 }
 
 * {
@@ -37,7 +37,9 @@ body {
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+  font-family:
+    "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC",
+    "Microsoft YaHei UI", sans-serif;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -68,7 +70,9 @@ a {
 
 .newsroom-hero h1 {
   margin: 10px 0 0;
-  font-family: "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+  font-family:
+    "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC",
+    "Microsoft YaHei UI", sans-serif;
   font-size: clamp(38px, 5.4vw, 62px);
   line-height: 1.05;
   letter-spacing: -0.02em;
@@ -151,7 +155,9 @@ a {
 
 .article-headline {
   margin: 10px 0 0;
-  font-family: "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+  font-family:
+    "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC",
+    "Microsoft YaHei UI", sans-serif;
   font-size: 30px;
   line-height: 1.22;
   letter-spacing: -0.015em;

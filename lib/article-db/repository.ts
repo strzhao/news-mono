@@ -1,17 +1,12 @@
 import crypto from "node:crypto";
 import type { PoolClient } from "pg";
-import { isWechatArticleIdentityCandidate, normalizeArticleTitleKey } from "@/lib/domain/article-identity";
-import { Article, ArticleAssessment, SourceConfig } from "@/lib/domain/models";
-import { normalizeUrl } from "@/lib/domain/tracker-common";
-import { getPgPool } from "@/lib/infra/postgres";
-import { planWechatArchiveRepairs, type WechatArchiveRepairCandidate } from "@/lib/article-db/wechat-archive-repair";
-import {
-  ArticleContentSnapshot,
-  ArticleSummaryRow,
-  ArticleSummaryStatus,
+import type {
   ArchivedArticleRow,
+  ArticleContentSnapshot,
   ArticleQualityFeedback,
   ArticleQualityFeedbackEvent,
+  ArticleSummaryRow,
+  ArticleSummaryStatus,
   ChannelAnalyticsStat,
   ChannelStat,
   DailyTrendPoint,
@@ -33,6 +28,17 @@ import {
   TagGroupRow,
   TagUsageStat,
 } from "@/lib/article-db/types";
+import {
+  planWechatArchiveRepairs,
+  type WechatArchiveRepairCandidate,
+} from "@/lib/article-db/wechat-archive-repair";
+import {
+  isWechatArticleIdentityCandidate,
+  normalizeArticleTitleKey,
+} from "@/lib/domain/article-identity";
+import type { Article, ArticleAssessment, SourceConfig } from "@/lib/domain/models";
+import { normalizeUrl } from "@/lib/domain/tracker-common";
+import { getPgPool } from "@/lib/infra/postgres";
 
 let schemaReady: Promise<void> | null = null;
 const MAX_FULL_CONTENT_TEXT_CHARS = 500_000;
@@ -150,8 +156,13 @@ function normalizeDate(date: string): string {
   return raw;
 }
 
-function normalizeQualityTier(value: string | undefined, fallback: QualityTier = "high"): QualityTier {
-  const raw = String(value || "").trim().toLowerCase();
+function normalizeQualityTier(
+  value: string | undefined,
+  fallback: QualityTier = "high",
+): QualityTier {
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase();
   if (!raw) return fallback;
   if (["high", "hq", "default"].includes(raw)) return "high";
   if (["general", "normal", "common", "non_high"].includes(raw)) return "general";
@@ -212,7 +223,9 @@ function parseStringArray(value: unknown): string[] {
 }
 
 function parseFlomoArchivePushStatus(value: unknown): FlomoArchivePushBatchStatus {
-  const raw = String(value || "").trim().toLowerCase();
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase();
   if (raw === "sent") return "sent";
   if (raw === "failed") return "failed";
   return "pending";
@@ -253,7 +266,7 @@ function normalizeTagKey(value: string): string {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -387,7 +400,9 @@ function parseGovernanceFeedbackEventRow(row: Record<string, unknown>): TagGover
 }
 
 function normalizeFeedbackValue(value: string): ArticleQualityFeedback {
-  const raw = String(value || "").trim().toLowerCase();
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase();
   return raw === "bad" ? "bad" : "good";
 }
 
@@ -901,7 +916,9 @@ export async function repairWechatDailyArchives(params: {
   await ensureArticleDbSchema();
   const fromDate = normalizeDate(params.fromDate);
   const toDate = normalizeDate(params.toDate);
-  const timezoneName = String(params.timezoneName || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+  const timezoneName =
+    String(params.timezoneName || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() ||
+    "Asia/Shanghai";
   const maxAgeDays = boundedScore(params.maxAgeDays, 3);
   const pool = getPgPool();
 
@@ -1058,7 +1075,9 @@ export async function listArticleContentTargets(
   articleIds: string[],
 ): Promise<Array<{ articleId: string; sourceUrl: string }>> {
   await ensureArticleDbSchema();
-  const normalizedIds = Array.from(new Set(articleIds.map((id) => String(id || "").trim()).filter(Boolean)));
+  const normalizedIds = Array.from(
+    new Set(articleIds.map((id) => String(id || "").trim()).filter(Boolean)),
+  );
   if (!normalizedIds.length) return [];
 
   const pool = getPgPool();
@@ -1081,7 +1100,9 @@ export async function listArticleContentTargets(
       const articleId = String(row.article_id || "").trim();
       if (!articleId) return null;
       const sourceUrl =
-        String(row.info_url || "").trim() || String(row.original_url || "").trim() || String(row.canonical_url || "").trim();
+        String(row.info_url || "").trim() ||
+        String(row.original_url || "").trim() ||
+        String(row.canonical_url || "").trim();
       if (!sourceUrl) return null;
       return {
         articleId,
@@ -1091,7 +1112,9 @@ export async function listArticleContentTargets(
     .filter((item): item is { articleId: string; sourceUrl: string } => Boolean(item));
 }
 
-export async function upsertArticleContentSnapshots(snapshots: ArticleContentSnapshot[]): Promise<void> {
+export async function upsertArticleContentSnapshots(
+  snapshots: ArticleContentSnapshot[],
+): Promise<void> {
   if (!snapshots.length) return;
   await ensureArticleDbSchema();
 
@@ -1192,7 +1215,10 @@ export async function upsertArticleAnalyses(params: {
 }): Promise<void> {
   await ensureArticleDbSchema();
   await withTx(async (client) => {
-    const discoveredTags = new Map<string, { groupKey: string; tagKey: string; displayName: string }>();
+    const discoveredTags = new Map<
+      string,
+      { groupKey: string; tagKey: string; displayName: string }
+    >();
 
     for (const [inputArticleId, assessment] of Object.entries(params.assessments)) {
       const storedId = params.inputToStoredId[inputArticleId];
@@ -1340,7 +1366,9 @@ export async function replaceDailyHighQuality(
   const normalizedDate = normalizeDate(date);
 
   await withTx(async (client) => {
-    await client.query(`DELETE FROM daily_high_quality_articles WHERE date = $1::date`, [normalizedDate]);
+    await client.query(`DELETE FROM daily_high_quality_articles WHERE date = $1::date`, [
+      normalizedDate,
+    ]);
 
     for (const row of rows) {
       await client.query(
@@ -1382,10 +1410,15 @@ export async function upsertDailyHighQuality(
   });
 }
 
-export async function removeDailyHighQualityByArticleIds(date: string, articleIds: string[]): Promise<number> {
+export async function removeDailyHighQualityByArticleIds(
+  date: string,
+  articleIds: string[],
+): Promise<number> {
   await ensureArticleDbSchema();
   const normalizedDate = normalizeDate(date);
-  const normalizedIds = Array.from(new Set(articleIds.map((id) => String(id || "").trim()).filter(Boolean)));
+  const normalizedIds = Array.from(
+    new Set(articleIds.map((id) => String(id || "").trim()).filter(Boolean)),
+  );
   if (!normalizedIds.length) {
     return 0;
   }
@@ -1402,7 +1435,10 @@ export async function removeDailyHighQualityByArticleIds(date: string, articleId
   return Number(result.rowCount || 0);
 }
 
-export async function pruneDailyHighQualityByCurrentScore(date: string, minScore: number): Promise<number> {
+export async function pruneDailyHighQualityByCurrentScore(
+  date: string,
+  minScore: number,
+): Promise<number> {
   await ensureArticleDbSchema();
   const normalizedDate = normalizeDate(date);
   const boundedMinScore = boundedScore(minScore, 50);
@@ -1428,7 +1464,9 @@ export async function replaceDailyAnalyzed(
   const normalizedDate = normalizeDate(date);
 
   await withTx(async (client) => {
-    await client.query(`DELETE FROM daily_analyzed_articles WHERE date = $1::date`, [normalizedDate]);
+    await client.query(`DELETE FROM daily_analyzed_articles WHERE date = $1::date`, [
+      normalizedDate,
+    ]);
 
     for (const row of rows) {
       await client.query(
@@ -1500,7 +1538,10 @@ export async function touchIngestionRun(runId: string): Promise<void> {
   );
 }
 
-export async function failStaleIngestionRuns(params: { runDate?: string; staleSeconds: number }): Promise<number> {
+export async function failStaleIngestionRuns(params: {
+  runDate?: string;
+  staleSeconds: number;
+}): Promise<number> {
   await ensureArticleDbSchema();
   const staleSeconds = Math.max(60, Math.min(86_400, Math.trunc(params.staleSeconds || 600)));
   const runDateOrNull = params.runDate ? normalizeDate(params.runDate) : null;
@@ -1568,14 +1609,18 @@ export async function finishIngestionRun(params: {
 export async function tryAcquireFlomoArchivePushLock(): Promise<boolean> {
   await ensureArticleDbSchema();
   const pool = getPgPool();
-  const result = await pool.query(`SELECT pg_try_advisory_lock($1::bigint) AS locked`, [FLOMO_ARCHIVE_PUSH_LOCK_ID]);
+  const result = await pool.query(`SELECT pg_try_advisory_lock($1::bigint) AS locked`, [
+    FLOMO_ARCHIVE_PUSH_LOCK_ID,
+  ]);
   const row = (result.rows[0] || {}) as Record<string, unknown>;
   return Boolean(row.locked);
 }
 
 export async function releaseFlomoArchivePushLock(): Promise<void> {
   const pool = getPgPool();
-  await pool.query(`SELECT pg_advisory_unlock($1::bigint) AS unlocked`, [FLOMO_ARCHIVE_PUSH_LOCK_ID]);
+  await pool.query(`SELECT pg_advisory_unlock($1::bigint) AS unlocked`, [
+    FLOMO_ARCHIVE_PUSH_LOCK_ID,
+  ]);
 }
 
 export async function getNextRetryableFlomoArchivePushBatch(): Promise<FlomoArchivePushBatchRow | null> {
@@ -1618,7 +1663,9 @@ export async function createFlomoArchivePushBatch(params: {
     throw new Error("Missing batchKey");
   }
   const sourceDate = normalizeDate(params.sourceDate);
-  const articleIds = Array.from(new Set(params.articleIds.map((id) => String(id || "").trim()).filter(Boolean)));
+  const articleIds = Array.from(
+    new Set(params.articleIds.map((id) => String(id || "").trim()).filter(Boolean)),
+  );
   if (!articleIds.length) {
     throw new Error("Missing articleIds");
   }
@@ -1654,7 +1701,10 @@ export async function createFlomoArchivePushBatch(params: {
   return rowToFlomoArchivePushBatch(result.rows[0] as Record<string, unknown>);
 }
 
-export async function markFlomoArchivePushBatchFailed(params: { batchKey: string; errorMessage: string }): Promise<void> {
+export async function markFlomoArchivePushBatchFailed(params: {
+  batchKey: string;
+  errorMessage: string;
+}): Promise<void> {
   await ensureArticleDbSchema();
   const batchKey = String(params.batchKey || "").trim();
   if (!batchKey) {
@@ -1728,9 +1778,13 @@ export async function markFlomoArchivePushBatchSent(batchKeyInput: string): Prom
   });
 }
 
-export async function listConsumedFlomoArchiveArticleIds(articleIds: string[]): Promise<Set<string>> {
+export async function listConsumedFlomoArchiveArticleIds(
+  articleIds: string[],
+): Promise<Set<string>> {
   await ensureArticleDbSchema();
-  const normalizedIds = Array.from(new Set(articleIds.map((id) => String(id || "").trim()).filter(Boolean)));
+  const normalizedIds = Array.from(
+    new Set(articleIds.map((id) => String(id || "").trim()).filter(Boolean)),
+  );
   if (!normalizedIds.length) {
     return new Set<string>();
   }
@@ -1752,7 +1806,10 @@ export async function listConsumedFlomoArchiveArticleIds(articleIds: string[]): 
   );
 }
 
-function rowToHighQualityItem(row: Record<string, unknown>, qualityTier: QualityTier): HighQualityArticleItem {
+function rowToHighQualityItem(
+  row: Record<string, unknown>,
+  qualityTier: QualityTier,
+): HighQualityArticleItem {
   const date = toDateString(row.date);
   const generatedAt = toIso(row.selected_at || row.analyzed_at);
   return {
@@ -1788,7 +1845,12 @@ export function buildFirstSeenUniqueHighQualityGroups(params: {
   const limitPerDay = Math.max(1, Math.min(Math.trunc(params.limitPerDay), 200));
   const byDate = new Map<
     string,
-    Array<{ row: Record<string, unknown>; rankScore: number; generatedAtMs: number; articleId: string }>
+    Array<{
+      row: Record<string, unknown>;
+      rankScore: number;
+      generatedAtMs: number;
+      articleId: string;
+    }>
   >();
 
   for (const raw of params.rows) {
@@ -1870,7 +1932,10 @@ export async function listHighQualityByDate(params: {
   const tag = normalizeTagKey(params.tag || "");
   const qualityTier = normalizeQualityTier(params.qualityTier, "high");
   const qualityThreshold = boundedScore(
-    Number(params.qualityThreshold ?? Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50"))),
+    Number(
+      params.qualityThreshold ??
+        Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50")),
+    ),
     50,
   );
   const tagGroupOrNull = tagGroup || null;
@@ -2071,14 +2136,26 @@ export async function listHighQualityByDate(params: {
     ORDER BY d.rank_score DESC, d.analyzed_at DESC
     LIMIT $2 OFFSET $3
   `,
-    [date, limit, offset, qualityTier, qualityThreshold, tagGroupOrNull, tagOrNull, sourceChannelOrNull],
+    [
+      date,
+      limit,
+      offset,
+      qualityTier,
+      qualityThreshold,
+      tagGroupOrNull,
+      tagOrNull,
+      sourceChannelOrNull,
+    ],
   );
 
   return {
     total: Number(totalRow.rows[0]?.total || 0),
     items: result.rows.map((raw) => {
       const row = raw as Record<string, unknown>;
-      const tier = qualityTier === "all" ? tierByScore(Number(row.quality_score_snapshot || 0), qualityThreshold) : "general";
+      const tier =
+        qualityTier === "all"
+          ? tierByScore(Number(row.quality_score_snapshot || 0), qualityThreshold)
+          : "general";
       return rowToHighQualityItem(row, tier);
     }),
   };
@@ -2103,7 +2180,10 @@ export async function listHighQualityRange(params: {
   const tag = normalizeTagKey(params.tag || "");
   const qualityTier = normalizeQualityTier(params.qualityTier, "high");
   const qualityThreshold = boundedScore(
-    Number(params.qualityThreshold ?? Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50"))),
+    Number(
+      params.qualityThreshold ??
+        Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50")),
+    ),
     50,
   );
   const tagGroupOrNull = tagGroup || null;
@@ -2231,7 +2311,15 @@ export async function listHighQualityRange(params: {
             )
           ORDER BY d.date DESC, d.rank_score DESC, d.analyzed_at DESC
         `,
-          [fromDate, toDate, tagGroupOrNull, tagOrNull, qualityTier, qualityThreshold, sourceChannelOrNull],
+          [
+            fromDate,
+            toDate,
+            tagGroupOrNull,
+            tagOrNull,
+            qualityTier,
+            qualityThreshold,
+            sourceChannelOrNull,
+          ],
         );
 
   const rows = candidates.rows.map((row) => row as Record<string, unknown>);
@@ -2243,11 +2331,7 @@ export async function listHighQualityRange(params: {
   }
 
   const articleIds = Array.from(
-    new Set(
-      rows
-        .map((row) => String(row.article_id || "").trim())
-        .filter(Boolean),
-    ),
+    new Set(rows.map((row) => String(row.article_id || "").trim()).filter(Boolean)),
   );
 
   if (!articleIds.length) {
@@ -2359,7 +2443,10 @@ export async function listArchivedArticles(params: {
   const offset = Math.max(0, Math.min(Math.trunc(params.offset), 20_000));
   const qualityTier = normalizeQualityTier(params.qualityTier, "all");
   const qualityThreshold = boundedScore(
-    Number(params.qualityThreshold ?? Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50"))),
+    Number(
+      params.qualityThreshold ??
+        Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50")),
+    ),
     50,
   );
   const sourceId = String(params.sourceId || "").trim() || null;
@@ -2393,7 +2480,16 @@ export async function listArchivedArticles(params: {
         OR aa.reason_short ILIKE ('%' || $7 || '%')
       )
   `,
-    [fromDate, toDate, qualityTier, qualityThreshold, sourceId, primaryType, search, sourceChannelOrNull],
+    [
+      fromDate,
+      toDate,
+      qualityTier,
+      qualityThreshold,
+      sourceId,
+      primaryType,
+      search,
+      sourceChannelOrNull,
+    ],
   );
 
   const rows = await pool.query(
@@ -2488,12 +2584,25 @@ export async function listArchivedArticles(params: {
     ORDER BY filtered.date DESC, filtered.rank_score DESC, filtered.analyzed_at DESC
     LIMIT $9 OFFSET $10
   `,
-    [fromDate, toDate, qualityTier, qualityThreshold, sourceId, primaryType, search, sourceChannelOrNull, limit, offset],
+    [
+      fromDate,
+      toDate,
+      qualityTier,
+      qualityThreshold,
+      sourceId,
+      primaryType,
+      search,
+      sourceChannelOrNull,
+      limit,
+      offset,
+    ],
   );
 
   return {
     total: Number(totalRow.rows[0]?.total || 0),
-    items: rows.rows.map((row) => rowToArchivedArticle(row as Record<string, unknown>, qualityThreshold)),
+    items: rows.rows.map((row) =>
+      rowToArchivedArticle(row as Record<string, unknown>, qualityThreshold),
+    ),
   };
 }
 
@@ -2511,7 +2620,8 @@ export async function recordArticleQualityFeedback(params: {
   const feedback = normalizeFeedbackValue(params.feedback);
   const feedbackScore = feedback === "good" ? 1 : -1;
   const source = String(params.source || "archive_review_ui").trim() || "archive_review_ui";
-  const contextJson = params.contextJson && typeof params.contextJson === "object" ? params.contextJson : {};
+  const contextJson =
+    params.contextJson && typeof params.contextJson === "object" ? params.contextJson : {};
   const pool = getPgPool();
 
   const snapshotQuery = await pool.query(
@@ -2625,18 +2735,20 @@ function computeBiasMap(
   return output;
 }
 
-export async function loadFeedbackAdjustmentMap(params: {
-  lookbackDays?: number;
-  articleWeight?: number;
-  sourceWeight?: number;
-  typeWeight?: number;
-  articleMinSamples?: number;
-  sourceMinSamples?: number;
-  typeMinSamples?: number;
-  articleMaxAbs?: number;
-  sourceMaxAbs?: number;
-  typeMaxAbs?: number;
-} = {}): Promise<FeedbackAdjustmentMap> {
+export async function loadFeedbackAdjustmentMap(
+  params: {
+    lookbackDays?: number;
+    articleWeight?: number;
+    sourceWeight?: number;
+    typeWeight?: number;
+    articleMinSamples?: number;
+    sourceMinSamples?: number;
+    typeMinSamples?: number;
+    articleMaxAbs?: number;
+    sourceMaxAbs?: number;
+    typeMaxAbs?: number;
+  } = {},
+): Promise<FeedbackAdjustmentMap> {
   await ensureArticleDbSchema();
   const lookbackDays = Math.max(1, Math.min(365, Math.trunc(params.lookbackDays ?? 120)));
   const articleWeight = boundedPositive(Number(params.articleWeight ?? 6), 6, 0, 20);
@@ -2723,7 +2835,9 @@ export async function loadFeedbackAdjustmentMap(params: {
   };
 }
 
-export async function getHighQualityArticleDetail(articleId: string): Promise<HighQualityArticleDetail | null> {
+export async function getHighQualityArticleDetail(
+  articleId: string,
+): Promise<HighQualityArticleDetail | null> {
   await ensureArticleDbSchema();
   const normalized = String(articleId || "").trim();
   if (!normalized) return null;
@@ -2956,7 +3070,10 @@ export async function listActiveTagDefinitions(): Promise<TagDefinition[]> {
   return items;
 }
 
-export async function getTagDefinition(groupKeyRaw: string, tagKeyRaw: string): Promise<TagDefinition | null> {
+export async function getTagDefinition(
+  groupKeyRaw: string,
+  tagKeyRaw: string,
+): Promise<TagDefinition | null> {
   await ensureArticleDbSchema();
   const groupKey = normalizeTagKey(groupKeyRaw);
   const tagKey = normalizeTagKey(tagKeyRaw);
@@ -3067,9 +3184,7 @@ export async function upsertTagDefinition(params: {
   const description = String(params.description || "").trim();
   const aliases = Array.from(
     new Set(
-      (params.aliases || [])
-        .map((item) => normalizeTagKey(String(item || "")))
-        .filter(Boolean),
+      (params.aliases || []).map((item) => normalizeTagKey(String(item || ""))).filter(Boolean),
     ),
   );
   const isActive = params.isActive !== undefined ? Boolean(params.isActive) : true;
@@ -3102,7 +3217,10 @@ export async function upsertTagDefinition(params: {
   );
 }
 
-export async function deactivateTagDefinition(groupKeyRaw: string, tagKeyRaw: string): Promise<boolean> {
+export async function deactivateTagDefinition(
+  groupKeyRaw: string,
+  tagKeyRaw: string,
+): Promise<boolean> {
   await ensureArticleDbSchema();
   const groupKey = normalizeTagKey(groupKeyRaw);
   const tagKey = normalizeTagKey(tagKeyRaw);
@@ -3162,7 +3280,9 @@ export async function replaceTagInAnalysisTagGroups(
       const groups = parseTagGroups(row.tag_groups);
       const tags = groups[groupKey] || [];
       if (!tags.includes(sourceTag)) continue;
-      const next = Array.from(new Set(tags.map((item) => (item === sourceTag ? targetTag : item)).filter(Boolean)));
+      const next = Array.from(
+        new Set(tags.map((item) => (item === sourceTag ? targetTag : item)).filter(Boolean)),
+      );
       groups[groupKey] = next;
       await client.query(
         `
@@ -3179,7 +3299,9 @@ export async function replaceTagInAnalysisTagGroups(
   return updatedCount;
 }
 
-export async function getTagGovernanceObjective(objectiveIdRaw = "default"): Promise<TagGovernanceObjectiveRow> {
+export async function getTagGovernanceObjective(
+  objectiveIdRaw = "default",
+): Promise<TagGovernanceObjectiveRow> {
   await ensureArticleDbSchema();
   const objectiveId = String(objectiveIdRaw || "default").trim() || "default";
   const pool = getPgPool();
@@ -3208,7 +3330,8 @@ export async function upsertTagGovernanceObjective(params: {
 }): Promise<TagGovernanceObjectiveRow> {
   await ensureArticleDbSchema();
   const objectiveId = String(params.objectiveId || "default").trim() || "default";
-  const configJson = params.configJson && typeof params.configJson === "object" ? params.configJson : {};
+  const configJson =
+    params.configJson && typeof params.configJson === "object" ? params.configJson : {};
   const pool = getPgPool();
   const result = await pool.query(
     `
@@ -3320,7 +3443,8 @@ export async function appendTagGovernanceFeedback(params: {
   const weightRaw = Number(params.weight);
   const weight = Number.isFinite(weightRaw) ? Math.max(0, weightRaw) : 1;
   const source = String(params.source || "unknown").trim() || "unknown";
-  const contextJson = params.contextJson && typeof params.contextJson === "object" ? params.contextJson : {};
+  const contextJson =
+    params.contextJson && typeof params.contextJson === "object" ? params.contextJson : {};
   const id = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
   const pool = getPgPool();
@@ -3341,7 +3465,17 @@ export async function appendTagGovernanceFeedback(params: {
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW())
     RETURNING *
   `,
-    [id, objectiveId, eventType, groupKey, tagKey, score, weight, source, JSON.stringify(contextJson)],
+    [
+      id,
+      objectiveId,
+      eventType,
+      groupKey,
+      tagKey,
+      score,
+      weight,
+      source,
+      JSON.stringify(contextJson),
+    ],
   );
 
   return parseGovernanceFeedbackEventRow(result.rows[0] as Record<string, unknown>);
@@ -3430,10 +3564,9 @@ function parseSummaryRow(row: Record<string, unknown>): ArticleSummaryRow {
 export async function getArticleSummary(articleId: string): Promise<ArticleSummaryRow | null> {
   await ensureArticleDbSchema();
   const pool = getPgPool();
-  const result = await pool.query(
-    `SELECT * FROM article_summaries WHERE article_id = $1`,
-    [articleId],
-  );
+  const result = await pool.query(`SELECT * FROM article_summaries WHERE article_id = $1`, [
+    articleId,
+  ]);
   if (!result.rows.length) return null;
   return parseSummaryRow(result.rows[0] as Record<string, unknown>);
 }
@@ -3504,7 +3637,10 @@ export async function listActiveSources(): Promise<SourceOption[]> {
   return result.rows;
 }
 
-export async function getArchiveStatsByChannel(fromDate: string, toDate: string): Promise<ChannelStat[]> {
+export async function getArchiveStatsByChannel(
+  fromDate: string,
+  toDate: string,
+): Promise<ChannelStat[]> {
   await ensureArticleDbSchema();
   const pool = getPgPool();
   const from = normalizeDate(fromDate);
@@ -3537,7 +3673,9 @@ export async function getArchiveStatsBySource(
   const from = normalizeDate(fromDate);
   const to = normalizeDate(toDate);
   const threshold = boundedScore(
-    Number(qualityThreshold ?? Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50"))),
+    Number(
+      qualityThreshold ?? Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50")),
+    ),
     50,
   );
   const result = await pool.query<{
@@ -3581,7 +3719,9 @@ export async function getArchiveDailyTrend(
   const from = normalizeDate(fromDate);
   const to = normalizeDate(toDate);
   const threshold = boundedScore(
-    Number(qualityThreshold ?? Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50"))),
+    Number(
+      qualityThreshold ?? Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50")),
+    ),
     50,
   );
   const result = await pool.query<{ date: string; article_count: string; high_count: string }>(
@@ -3602,7 +3742,10 @@ export async function getArchiveDailyTrend(
   }));
 }
 
-export async function getChannelAnalytics(fromDate: string, toDate: string): Promise<ChannelAnalyticsStat[]> {
+export async function getChannelAnalytics(
+  fromDate: string,
+  toDate: string,
+): Promise<ChannelAnalyticsStat[]> {
   await ensureArticleDbSchema();
   const pool = getPgPool();
   const from = normalizeDate(fromDate);
@@ -3640,7 +3783,10 @@ export async function getChannelAnalytics(fromDate: string, toDate: string): Pro
   }));
 }
 
-export async function getArchiveStatsByPrimaryType(fromDate: string, toDate: string): Promise<PrimaryTypeStat[]> {
+export async function getArchiveStatsByPrimaryType(
+  fromDate: string,
+  toDate: string,
+): Promise<PrimaryTypeStat[]> {
   await ensureArticleDbSchema();
   const pool = getPgPool();
   const from = normalizeDate(fromDate);

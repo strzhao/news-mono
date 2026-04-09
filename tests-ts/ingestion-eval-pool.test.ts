@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { Article } from "@/lib/domain/models";
 import { buildEvaluationPool } from "@/lib/article-db/ingestion-runner";
+import type { Article } from "@/lib/domain/models";
 
-function article(params: {
-  id: string;
-  sourceType: string;
-  publishedAt: string;
-}): Article {
+function article(params: { id: string; sourceType: string; publishedAt: string }): Article {
   return {
     id: params.id,
     title: params.id,

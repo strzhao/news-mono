@@ -1,5 +1,5 @@
-import { requireArticleDbAuth } from "@/lib/article-db/auth";
 import { buildAiEvalObservabilitySnapshot } from "@/lib/article-db/ai-observability";
+import { requireArticleDbAuth } from "@/lib/article-db/auth";
 import { listRecentIngestionRuns } from "@/lib/article-db/ingestion-runs";
 import { jsonResponse } from "@/lib/infra/route-utils";
 
@@ -16,7 +16,11 @@ function boundedInt(raw: string, fallback: number, min: number, max: number): nu
 export async function GET(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   try {
@@ -43,6 +47,10 @@ export async function GET(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

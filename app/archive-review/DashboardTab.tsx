@@ -6,8 +6,8 @@ import type {
   PrimaryTypeStat,
   SourceStat,
 } from "@/lib/article-db/types";
-import { channelLabel, formatDateTime, formatPercent } from "./shared";
 import styles from "./page.module.css";
+import { channelLabel, formatDateTime, formatPercent } from "./shared";
 
 interface DashboardTabProps {
   from: string;
@@ -42,7 +42,8 @@ export default function DashboardTab({
 
   // Trend chart SVG
   const trendMaxCount = Math.max(...dailyTrend.map((d) => d.article_count), 1);
-  const trendBarWidth = dailyTrend.length > 0 ? Math.max(4, Math.floor(500 / dailyTrend.length) - 2) : 10;
+  const trendBarWidth =
+    dailyTrend.length > 0 ? Math.max(4, Math.floor(500 / dailyTrend.length) - 2) : 10;
   const trendSvgWidth = dailyTrend.length * (trendBarWidth + 2);
   const trendSvgHeight = 80;
 
@@ -92,8 +93,10 @@ export default function DashboardTab({
         </div>
         {latestRun ? (
           <p className={styles.aiLatest}>
-            最近运行：{formatDateTime(latestRun.started_at)} · 状态 {latestRun.status} · 候选 {latestRun.ai_eval_total_candidates} ·
-            失败率 {formatPercent(latestRun.ai_eval_failed_rate)} · 缓存命中率 {formatPercent(latestRun.ai_eval_cache_hit_rate)}
+            最近运行：{formatDateTime(latestRun.started_at)} · 状态 {latestRun.status} · 候选{" "}
+            {latestRun.ai_eval_total_candidates} · 失败率{" "}
+            {formatPercent(latestRun.ai_eval_failed_rate)} · 缓存命中率{" "}
+            {formatPercent(latestRun.ai_eval_cache_hit_rate)}
           </p>
         ) : (
           <p className={styles.aiLatest}>暂无 ingestion 运行记录。</p>
@@ -101,9 +104,13 @@ export default function DashboardTab({
         {samplePreview.length ? (
           <div className={styles.aiSamples}>
             {samplePreview.map((sample) => (
-              <article key={`${sample.article_id}:${sample.error_type}`} className={styles.aiSample}>
+              <article
+                key={`${sample.article_id}:${sample.error_type}`}
+                className={styles.aiSample}
+              >
                 <p>
-                  <strong>{sample.error_type}</strong> · {sample.article_id} · {sample.source_id || "-"}
+                  <strong>{sample.error_type}</strong> · {sample.article_id} ·{" "}
+                  {sample.source_id || "-"}
                 </p>
                 <p>{sample.error_message || "-"}</p>
               </article>
@@ -152,7 +159,9 @@ export default function DashboardTab({
       <section className={styles.statsPanel}>
         <div className={styles.statsPanelHead}>
           <h2>数据总览</h2>
-          <p>{from} ~ {to}</p>
+          <p>
+            {from} ~ {to}
+          </p>
         </div>
 
         {/* KPI overview */}
@@ -229,7 +238,10 @@ export default function DashboardTab({
                 const totalH = (d.article_count / trendMaxCount) * (trendSvgHeight - 14);
                 const highH = (d.high_count / trendMaxCount) * (trendSvgHeight - 14);
                 return (
-                  <g key={d.date} aria-label={`${d.date}: ${d.article_count} 篇 (${d.high_count} 高质量)`}>
+                  <g
+                    key={d.date}
+                    aria-label={`${d.date}: ${d.article_count} 篇 (${d.high_count} 高质量)`}
+                  >
                     <rect
                       x={x}
                       y={trendSvgHeight - totalH}

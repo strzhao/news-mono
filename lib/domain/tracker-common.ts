@@ -1,10 +1,13 @@
 import crypto from "node:crypto";
 import { URL } from "node:url";
 import { normalizeArticleUrl } from "@/lib/domain/article-identity";
-import { buildUpstashClient, buildUpstashClientOrNone, parseHashResult as parseHashRaw } from "@/lib/infra/upstash";
+import {
+  buildUpstashClient,
+  buildUpstashClientOrNone,
+  parseHashResult as parseHashRaw,
+} from "@/lib/infra/upstash";
 
 export const DEFAULT_TTL_SECONDS = 120 * 24 * 3600;
-
 
 const BOT_UA_TOKENS = [
   "bot",
@@ -85,7 +88,11 @@ export function signParams(params: Record<string, string>, secret: string): stri
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 }
 
-export function verifySignature(params: Record<string, string>, providedSig: string, secret: string): boolean {
+export function verifySignature(
+  params: Record<string, string>,
+  providedSig: string,
+  secret: string,
+): boolean {
   const normalized = String(providedSig || "").trim();
   if (normalized.length !== 64) {
     return false;

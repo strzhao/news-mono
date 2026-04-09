@@ -1,7 +1,7 @@
 // Detect macOS system proxy (ClashX etc.) for Node.js fetch
 function detectSystemProxy() {
   try {
-    const { execSync } = require("child_process");
+    const { execSync } = require("node:child_process");
     const output = execSync("scutil --proxy", { encoding: "utf8", timeout: 3000 });
     const get = (key) => {
       const m = output.match(new RegExp(`${key}\\s*:\\s*(.+)`));

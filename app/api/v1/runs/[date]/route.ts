@@ -12,7 +12,11 @@ export async function GET(
 ): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   const params = await context.params;
@@ -24,7 +28,10 @@ export async function GET(
   try {
     const staleSeconds = Math.max(
       120,
-      Math.min(86_400, Number.parseInt(String(process.env.INGESTION_RUN_STALE_SECONDS || "900"), 10) || 900),
+      Math.min(
+        86_400,
+        Number.parseInt(String(process.env.INGESTION_RUN_STALE_SECONDS || "900"), 10) || 900,
+      ),
     );
     await failStaleIngestionRuns({
       runDate: date,
@@ -38,6 +45,10 @@ export async function GET(
 
     return jsonResponse(200, { ok: true, generated_at: new Date().toISOString(), run }, true);
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

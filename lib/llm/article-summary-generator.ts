@@ -48,7 +48,9 @@ export interface ArticleSummaryResult {
   promptVersion: string;
 }
 
-export async function generateArticleSummary(input: ArticleSummaryInput): Promise<ArticleSummaryResult> {
+export async function generateArticleSummary(
+  input: ArticleSummaryInput,
+): Promise<ArticleSummaryResult> {
   const client = new DeepSeekClient({ timeoutSeconds: 90 });
 
   const contentBody = buildContentBody(input);
@@ -98,9 +100,15 @@ function buildContentBody(input: ArticleSummaryInput): string {
 function cleanMarkdownOutput(raw: string): string {
   let text = String(raw || "").trim();
   if (text.startsWith("```markdown")) {
-    text = text.replace(/^```markdown\s*/i, "").replace(/\s*```$/, "").trim();
+    text = text
+      .replace(/^```markdown\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim();
   } else if (text.startsWith("```")) {
-    text = text.replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
+    text = text
+      .replace(/^```\s*/, "")
+      .replace(/\s*```$/, "")
+      .trim();
   }
   return text;
 }

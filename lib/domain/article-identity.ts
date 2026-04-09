@@ -1,7 +1,15 @@
 import crypto from "node:crypto";
 
 const GENERIC_TRACKING_PREFIXES = ["utm_", "spm", "fbclid", "gclid", "ref"];
-const WECHAT_EPHEMERAL_PARAMS = new Set(["timestamp", "ver", "signature", "new", "scene", "clicktime", "enterid"]);
+const WECHAT_EPHEMERAL_PARAMS = new Set([
+  "timestamp",
+  "ver",
+  "signature",
+  "new",
+  "scene",
+  "clicktime",
+  "enterid",
+]);
 const WECHAT_STABLE_PARAMS = ["__biz", "mid", "idx", "sn"];
 const NON_TEXT_RE = /[^\p{L}\p{N}]+/gu;
 
@@ -36,7 +44,8 @@ export function normalizeArticleUrl(raw: string): string {
   try {
     const parsed = new URL(String(raw || "").trim());
     const entries: Array<[string, string]> = [];
-    const isWechatMp = parsed.hostname.toLowerCase() === "mp.weixin.qq.com" && parsed.pathname === "/s";
+    const isWechatMp =
+      parsed.hostname.toLowerCase() === "mp.weixin.qq.com" && parsed.pathname === "/s";
     const keepStableWechatOnly = isWechatMp && hasWechatStableParams(parsed);
 
     parsed.searchParams.forEach((value, key) => {
@@ -114,7 +123,11 @@ export function isWechatArticleIdentityCandidate(params: {
   url?: string;
   infoUrl?: string;
 }): boolean {
-  if (String(params.sourceType || "").trim().toLowerCase() === "wechat") {
+  if (
+    String(params.sourceType || "")
+      .trim()
+      .toLowerCase() === "wechat"
+  ) {
     return true;
   }
   return isMpWechatUrl(String(params.url || params.infoUrl || ""));
@@ -140,7 +153,11 @@ export function buildArticleIdentityKey(params: {
   if (rawUrl) {
     try {
       const parsed = new URL(rawUrl);
-      if (parsed.hostname.toLowerCase() === "mp.weixin.qq.com" && parsed.pathname === "/s" && hasWechatStableParams(parsed)) {
+      if (
+        parsed.hostname.toLowerCase() === "mp.weixin.qq.com" &&
+        parsed.pathname === "/s" &&
+        hasWechatStableParams(parsed)
+      ) {
         return normalizeArticleUrl(rawUrl);
       }
     } catch {
@@ -150,7 +167,9 @@ export function buildArticleIdentityKey(params: {
 
   const sourceId = String(params.sourceId || "wechat").trim() || "wechat";
   const publishedAtKey =
-    params.publishedAt && Number.isFinite(params.publishedAt.getTime()) ? params.publishedAt.toISOString() : "unknown";
+    params.publishedAt && Number.isFinite(params.publishedAt.getTime())
+      ? params.publishedAt.toISOString()
+      : "unknown";
   const titleKey = normalizeArticleTitleKey(params.title || "");
   const summaryKey = normalizeArticleTitleKey(String(params.summaryRaw || "").slice(0, 200));
   const fingerprint = crypto

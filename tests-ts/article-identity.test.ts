@@ -35,7 +35,9 @@ describe("article identity", () => {
   });
 
   it("preserves Chinese characters in title normalization", () => {
-    expect(normalizeArticleTitleKey("系统实现复杂度 与 用户理解心智复杂度")).toContain("系统实现复杂度");
+    expect(normalizeArticleTitleKey("系统实现复杂度 与 用户理解心智复杂度")).toContain(
+      "系统实现复杂度",
+    );
   });
 
   it("checks freshness by report date window", () => {

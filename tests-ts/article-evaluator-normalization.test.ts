@@ -83,7 +83,7 @@ describe("article evaluator normalization", () => {
       confidence: 0.9,
       primary_type: "open_source_project",
       secondary_types: [],
-      tag_groups: "{\"topic\":[\"multi agent\", \"RAG\"], \"role\": \"AI engineer\"}",
+      tag_groups: '{"topic":["multi agent", "RAG"], "role": "AI engineer"}',
     });
 
     expect(parsed.tagGroups.topic).toEqual(["multi_agent", "rag"]);

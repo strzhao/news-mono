@@ -76,7 +76,9 @@
 
 .heroTitle {
   margin: 0;
-  font-family: "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+  font-family:
+    "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC",
+    "Microsoft YaHei UI", sans-serif;
   font-size: clamp(36px, 5vw, 56px);
   font-weight: 700;
   line-height: 1.1;
@@ -174,10 +176,18 @@
   border-left: 3px solid var(--mist);
 }
 
-.sourceCard[data-channel="rss"] { border-left-color: var(--sky); }
-.sourceCard[data-channel="twitter"] { border-left-color: var(--ink); }
-.sourceCard[data-channel="wechat"] { border-left-color: #07c160; }
-.sourceCard[data-channel="github"] { border-left-color: var(--charcoal); }
+.sourceCard[data-channel="rss"] {
+  border-left-color: var(--sky);
+}
+.sourceCard[data-channel="twitter"] {
+  border-left-color: var(--ink);
+}
+.sourceCard[data-channel="wechat"] {
+  border-left-color: #07c160;
+}
+.sourceCard[data-channel="github"] {
+  border-left-color: var(--charcoal);
+}
 
 .sourceIcon {
   display: flex;
@@ -191,10 +201,18 @@
   font-size: 18px;
 }
 
-.sourceIcon[data-channel="rss"] { background: var(--sky); }
-.sourceIcon[data-channel="twitter"] { background: var(--ink); }
-.sourceIcon[data-channel="wechat"] { background: #07c160; }
-.sourceIcon[data-channel="github"] { background: var(--charcoal); }
+.sourceIcon[data-channel="rss"] {
+  background: var(--sky);
+}
+.sourceIcon[data-channel="twitter"] {
+  background: var(--ink);
+}
+.sourceIcon[data-channel="wechat"] {
+  background: #07c160;
+}
+.sourceIcon[data-channel="github"] {
+  background: var(--charcoal);
+}
 
 .sourceCardTitle {
   margin: 0;

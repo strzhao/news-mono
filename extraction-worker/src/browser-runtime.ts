@@ -1,6 +1,6 @@
-import { access } from "node:fs/promises";
 import { constants } from "node:fs";
-import { chromium, type Browser, type LaunchOptions } from "playwright";
+import { access } from "node:fs/promises";
+import { type Browser, chromium, type LaunchOptions } from "playwright";
 
 const BACKGROUND_BROWSER_KIND = "chromium";
 const INTERACTIVE_BROWSER_KIND = "chrome";
@@ -23,19 +23,13 @@ function mergeArgs(defaultArgs: string[], extraArgs?: string[]): string[] {
 
 function formatLaunchError(error: unknown, browserKind: string): string {
   const message = error instanceof Error ? error.message : String(error);
-  if (
-    browserKind === BACKGROUND_BROWSER_KIND &&
-    message.includes("Executable doesn't exist")
-  ) {
+  if (browserKind === BACKGROUND_BROWSER_KIND && message.includes("Executable doesn't exist")) {
     return `${message}\nRun '${BACKGROUND_BROWSER_INSTALL_COMMAND}' to install the ${browserKind} runtime used by extraction-worker background jobs.`;
   }
   return message;
 }
 
-async function launchBrowser(
-  launchOptions: LaunchOptions,
-  browserKind: string,
-): Promise<Browser> {
+async function launchBrowser(launchOptions: LaunchOptions, browserKind: string): Promise<Browser> {
   try {
     return await chromium.launch(launchOptions);
   } catch (error) {
@@ -64,9 +58,7 @@ export async function warnIfBackgroundBrowserMissing(): Promise<void> {
   }
 }
 
-export async function launchBackgroundBrowser(
-  overrides: LaunchOptions = {},
-): Promise<Browser> {
+export async function launchBackgroundBrowser(overrides: LaunchOptions = {}): Promise<Browser> {
   const proxyServer = currentProxyServer();
   const launchOptions: LaunchOptions = {
     ...overrides,
@@ -81,9 +73,7 @@ export async function launchBackgroundBrowser(
   return launchBrowser(launchOptions, BACKGROUND_BROWSER_KIND);
 }
 
-export async function launchInteractiveChrome(
-  overrides: LaunchOptions = {},
-): Promise<Browser> {
+export async function launchInteractiveChrome(overrides: LaunchOptions = {}): Promise<Browser> {
   const proxyServer = currentProxyServer();
   const launchOptions: LaunchOptions = {
     ...overrides,

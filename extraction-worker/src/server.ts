@@ -10,10 +10,10 @@
  */
 import http from "node:http";
 import {
-  extractWithBrowser,
-  closeBrowserPool,
   type BrowserExtractOptions,
   type BrowserExtractResult,
+  closeBrowserPool,
+  extractWithBrowser,
 } from "./extractors/browser.js";
 
 const PORT = Number(process.env.BROWSER_EXTRACT_PORT) || 3100;
@@ -89,10 +89,7 @@ function checkAuth(req: http.IncomingMessage): boolean {
 // Route handlers
 // ---------------------------------------------------------------------------
 
-async function handleExtract(
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-): Promise<void> {
+async function handleExtract(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const raw = await readBody(req);
   let body: Record<string, unknown>;
   try {
@@ -129,10 +126,7 @@ async function handleExtract(
   }
 }
 
-function handleHealth(
-  _req: http.IncomingMessage,
-  res: http.ServerResponse,
-): void {
+function handleHealth(_req: http.IncomingMessage, res: http.ServerResponse): void {
   json(res, 200, {
     ok: true,
     uptime_seconds: Math.floor((Date.now() - startedAt) / 1000),

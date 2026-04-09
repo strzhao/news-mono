@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 function pickMessage(payload: Record<string, unknown>, fallback: string): string {
   const error = String(payload.error || "").trim();
@@ -17,7 +17,7 @@ function pickMessage(payload: Record<string, unknown>, fallback: string): string
 
 function normalizeNextPath(raw: string): string {
   const value = String(raw || "").trim();
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+  if (!value?.startsWith("/") || value.startsWith("//")) {
     return "/archive-review";
   }
   return value;
@@ -40,13 +40,15 @@ export default function AuthCallbackClient(props: { authIssuer: string }): React
   const searchParams = useSearchParams();
   const [status, setStatus] = useState("正在校验授权回跳...");
   const [error, setError] = useState("");
-  const [retryNonce, setRetryNonce] = useState(0);
+  const [_retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     let active = true;
 
     async function run(): Promise<void> {
-      const issuer = String(props.authIssuer || "").trim().replace(/\/$/, "");
+      const issuer = String(props.authIssuer || "")
+        .trim()
+        .replace(/\/$/, "");
       if (!issuer) {
         if (active) {
           setError("auth_not_configured");
@@ -103,7 +105,7 @@ export default function AuthCallbackClient(props: { authIssuer: string }): React
     return () => {
       active = false;
     };
-  }, [props.authIssuer, retryNonce, router, searchParams]);
+  }, [props.authIssuer, router, searchParams]);
 
   function retryFinalize(): void {
     setError("");

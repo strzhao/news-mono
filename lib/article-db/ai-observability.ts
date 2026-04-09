@@ -1,4 +1,4 @@
-import { IngestionRunRow } from "@/lib/article-db/types";
+import type { IngestionRunRow } from "@/lib/article-db/types";
 
 export interface AiEvalFailedSample {
   article_id: string;
@@ -83,7 +83,9 @@ function parseErrorTypeCounts(value: unknown): Record<string, number> {
   const input = asObject(value);
   const output: Record<string, number> = {};
   Object.entries(input).forEach(([key, raw]) => {
-    const normalizedKey = String(key || "").trim().toLowerCase();
+    const normalizedKey = String(key || "")
+      .trim()
+      .toLowerCase();
     if (!normalizedKey) return;
     output[normalizedKey] = Math.max(0, Math.trunc(toNumber(raw, 0)));
   });
@@ -134,12 +136,18 @@ export function normalizeAiEvalRun(run: IngestionRunRow): AiEvalRunView {
     ai_eval_total_candidates: totalCandidates,
     ai_eval_evaluated_success: evalSuccess,
     ai_eval_evaluated_failed: evalFailed,
-    ai_eval_skipped_due_wall_time: Math.max(0, Math.trunc(toNumber(stats.ai_eval_skipped_due_wall_time, 0))),
+    ai_eval_skipped_due_wall_time: Math.max(
+      0,
+      Math.trunc(toNumber(stats.ai_eval_skipped_due_wall_time, 0)),
+    ),
     ai_eval_failed_rate: boundedRate(evalFailed, Math.max(1, evalSuccess + evalFailed)),
     ai_eval_cache_hit: cacheHit,
     ai_eval_cache_miss: cacheMiss,
     ai_eval_cache_hit_rate: boundedRate(cacheHit, Math.max(1, cacheHit + cacheMiss)),
-    ai_eval_retry_count_total: Math.max(0, Math.trunc(toNumber(stats.ai_eval_retry_count_total, 0))),
+    ai_eval_retry_count_total: Math.max(
+      0,
+      Math.trunc(toNumber(stats.ai_eval_retry_count_total, 0)),
+    ),
     ai_eval_latency_ms_p50: Math.max(0, Math.round(toNumber(stats.ai_eval_latency_ms_p50, 0))),
     ai_eval_latency_ms_p90: Math.max(0, Math.round(toNumber(stats.ai_eval_latency_ms_p90, 0))),
     ai_eval_latency_ms_max: Math.max(0, Math.round(toNumber(stats.ai_eval_latency_ms_max, 0))),
@@ -151,18 +159,27 @@ export function normalizeAiEvalRun(run: IngestionRunRow): AiEvalRunView {
   };
 }
 
-export function buildAiEvalObservabilitySnapshot(runs: IngestionRunRow[]): AiEvalObservabilitySnapshot {
+export function buildAiEvalObservabilitySnapshot(
+  runs: IngestionRunRow[],
+): AiEvalObservabilitySnapshot {
   const normalizedRuns = runs.map((run) => normalizeAiEvalRun(run));
   const runCount = normalizedRuns.length;
   const runSuccessCount = normalizedRuns.filter((run) => run.status === "success").length;
   const runFailedCount = normalizedRuns.filter((run) => run.status === "failed").length;
 
-  const totalCandidates = normalizedRuns.reduce((sum, run) => sum + run.ai_eval_total_candidates, 0);
+  const totalCandidates = normalizedRuns.reduce(
+    (sum, run) => sum + run.ai_eval_total_candidates,
+    0,
+  );
   const totalSuccess = normalizedRuns.reduce((sum, run) => sum + run.ai_eval_evaluated_success, 0);
   const totalFailed = normalizedRuns.reduce((sum, run) => sum + run.ai_eval_evaluated_failed, 0);
 
-  const failedRateRuns = normalizedRuns.filter((run) => run.ai_eval_evaluated_success + run.ai_eval_evaluated_failed > 0);
-  const cacheRateRuns = normalizedRuns.filter((run) => run.ai_eval_cache_hit + run.ai_eval_cache_miss > 0);
+  const failedRateRuns = normalizedRuns.filter(
+    (run) => run.ai_eval_evaluated_success + run.ai_eval_evaluated_failed > 0,
+  );
+  const cacheRateRuns = normalizedRuns.filter(
+    (run) => run.ai_eval_cache_hit + run.ai_eval_cache_miss > 0,
+  );
   const latencyRuns = normalizedRuns.filter((run) => run.ai_eval_latency_ms_p90 > 0);
 
   const avgFailedRate = failedRateRuns.length
@@ -182,10 +199,14 @@ export function buildAiEvalObservabilitySnapshot(runs: IngestionRunRow[]): AiEva
       )
     : 0;
   const avgLatencyP90Ms = latencyRuns.length
-    ? Math.round(latencyRuns.reduce((sum, run) => sum + run.ai_eval_latency_ms_p90, 0) / latencyRuns.length)
+    ? Math.round(
+        latencyRuns.reduce((sum, run) => sum + run.ai_eval_latency_ms_p90, 0) / latencyRuns.length,
+      )
     : 0;
 
-  const latestFailedSamples = normalizedRuns.find((run) => run.ai_eval_failed_samples.length > 0)?.ai_eval_failed_samples || [];
+  const latestFailedSamples =
+    normalizedRuns.find((run) => run.ai_eval_failed_samples.length > 0)?.ai_eval_failed_samples ||
+    [];
 
   return {
     summary: {

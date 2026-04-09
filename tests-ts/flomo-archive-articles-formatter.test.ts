@@ -89,7 +89,9 @@ describe("flomo archive articles formatter", () => {
       .filter(Boolean);
     const lastLine = nonEmptyLines[nonEmptyLines.length - 1] || "";
     expect(lastLine.startsWith("#")).toBe(true);
-    expect(lastLine.split(/\s+/).every((token) => token.startsWith("#") && !token.includes(" "))).toBe(true);
+    expect(
+      lastLine.split(/\s+/).every((token) => token.startsWith("#") && !token.includes(" ")),
+    ).toBe(true);
   });
 
   it("renders fallback text when there is no article", () => {

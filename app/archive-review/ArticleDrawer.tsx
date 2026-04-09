@@ -1,7 +1,15 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import styles from "./page.module.css";
 
 function addNoReferrerToImages(html: string): string {
@@ -78,7 +86,8 @@ export function ArticleDrawerProvider({
   }, [open]);
 
   const externalUrl = data ? data.info_url || data.original_url || data.canonical_url : "";
-  const sourceUrl = data && data.original_url && data.original_url !== externalUrl ? data.original_url : "";
+  const sourceUrl =
+    data?.original_url && data.original_url !== externalUrl ? data.original_url : "";
 
   const contentEl = (() => {
     if (pending || !data) {
@@ -92,7 +101,8 @@ export function ArticleDrawerProvider({
         />
       );
     }
-    const text = data.content_full_text || data.content_text || data.summary_raw || data.lead_paragraph;
+    const text =
+      data.content_full_text || data.content_text || data.summary_raw || data.lead_paragraph;
     if (text) {
       return <div className={styles.drawerText}>{text}</div>;
     }
@@ -154,20 +164,10 @@ export function ArticleDrawerProvider({
   );
 }
 
-export function ArticleTitle({
-  articleId,
-  children,
-}: {
-  articleId: string;
-  children: ReactNode;
-}) {
+export function ArticleTitle({ articleId, children }: { articleId: string; children: ReactNode }) {
   const openDrawer = useOpenDrawer();
   return (
-    <button
-      type="button"
-      className={styles.articleTitleBtn}
-      onClick={() => openDrawer(articleId)}
-    >
+    <button type="button" className={styles.articleTitleBtn} onClick={() => openDrawer(articleId)}>
       {children}
     </button>
   );

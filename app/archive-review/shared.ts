@@ -28,7 +28,9 @@ export function clampInt(raw: string, fallback: number, min: number, max: number
 }
 
 export function normalizeQualityTier(raw: string): "high" | "general" | "all" {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = String(raw || "")
+    .trim()
+    .toLowerCase();
   if (["high", "hq", "default"].includes(value)) return "high";
   if (["general", "normal", "common", "non_high"].includes(value)) return "general";
   return "all";

@@ -10,8 +10,8 @@
  * service for Vercel-side callers (pre-crawl, extract-url API).
  */
 import { execFileSync } from "node:child_process";
-import { type Browser, type BrowserContext, type Page } from "playwright";
 import { createHash } from "node:crypto";
+import type { Browser, BrowserContext, Page } from "playwright";
 import {
   getBackgroundBrowserKind,
   hasProxyServer,
@@ -64,7 +64,7 @@ function formatError(error: unknown): string {
 }
 
 function browserContextCount(): number {
-  return browserInstance && browserInstance.isConnected() ? browserInstance.contexts().length : 0;
+  return browserInstance?.isConnected() ? browserInstance.contexts().length : 0;
 }
 
 function logPoolEvent(event: string, details: Record<string, unknown> = {}): void {
@@ -102,11 +102,7 @@ function detectBrowserPid(): number | null {
 
 function listChildBrowserPids(): Set<number> {
   try {
-    const output = execFileSync(
-      "ps",
-      ["-axo", "pid=,ppid=,command="],
-      { encoding: "utf8" },
-    );
+    const output = execFileSync("ps", ["-axo", "pid=,ppid=,command="], { encoding: "utf8" });
     const pids = new Set<number>();
     for (const line of output.split("\n")) {
       const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
@@ -118,7 +114,9 @@ function listChildBrowserPids(): Set<number> {
       if (
         !command.includes("chrome-headless-shell") &&
         !command.includes("/Contents/MacOS/Chromium") &&
-        !command.includes("/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing") &&
+        !command.includes(
+          "/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+        ) &&
         !command.includes("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
       ) {
         continue;
@@ -229,9 +227,8 @@ async function acquireBrowser(): Promise<Browser> {
 function detectLaunchedBrowserPid(existingChildPids: Set<number>): number | null {
   const currentChildPids = listChildBrowserPids();
   const launchedPid =
-    [...currentChildPids]
-      .filter((pid) => !existingChildPids.has(pid))
-      .sort((a, b) => b - a)[0] ?? null;
+    [...currentChildPids].filter((pid) => !existingChildPids.has(pid)).sort((a, b) => b - a)[0] ??
+    null;
   return launchedPid ?? detectBrowserPid();
 }
 
@@ -260,7 +257,7 @@ export async function closeBrowserPool(reason = "shutdown"): Promise<void> {
 // Concurrency semaphore
 // ---------------------------------------------------------------------------
 
-let waiting: Array<() => void> = [];
+const waiting: Array<() => void> = [];
 
 async function acquireSlot(): Promise<void> {
   if (activeRequests >= MAX_CONCURRENT_PAGES) {
@@ -293,10 +290,7 @@ function removeNoiseTags(html: string): string {
 function htmlToText(html: string, maxChars: number): string {
   const withBreaks = html
     .replace(/<\s*br\s*\/?>/gi, "\n")
-    .replace(
-      /<\/\s*(p|div|article|section|li|h[1-6]|blockquote|pre|tr|td)\s*>/gi,
-      "\n",
-    );
+    .replace(/<\/\s*(p|div|article|section|li|h[1-6]|blockquote|pre|tr|td)\s*>/gi, "\n");
   const stripped = withBreaks.replace(/<[^>]+>/g, " ");
   const decoded = stripped
     .replace(/&nbsp;/gi, " ")
@@ -341,13 +335,16 @@ function guessWechatImageExt(url: string, contentType?: string): string {
   return ".jpg";
 }
 
-async function downloadWechatImage(imageUrl: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+async function downloadWechatImage(
+  imageUrl: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), WECHAT_IMG_TIMEOUT_MS);
     const response = await fetch(imageUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Referer: "https://mp.weixin.qq.com/",
       },
       signal: controller.signal,
@@ -404,7 +401,9 @@ async function replaceWechatImages(
           );
           return { originalUrl, blobUrl: uploaded.url };
         } catch (err) {
-          console.warn(`[browser] Failed to upload wechat image ${idx}: ${err instanceof Error ? err.message : err}`);
+          console.warn(
+            `[browser] Failed to upload wechat image ${idx}: ${err instanceof Error ? err.message : err}`,
+          );
           return null;
         }
       }),
@@ -516,8 +515,16 @@ export async function extractWithBrowser(
       Object.defineProperty(navigator, "plugins", {
         get: () => {
           const plugins = [
-            { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer", description: "Portable Document Format" },
-            { name: "Chrome PDF Viewer", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai", description: "" },
+            {
+              name: "Chrome PDF Plugin",
+              filename: "internal-pdf-viewer",
+              description: "Portable Document Format",
+            },
+            {
+              name: "Chrome PDF Viewer",
+              filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+              description: "",
+            },
             { name: "Native Client", filename: "internal-nacl-plugin", description: "" },
           ];
           const arr = plugins.map((p) => {
@@ -560,13 +567,15 @@ export async function extractWithBrowser(
       const getParameter = WebGLRenderingContext.prototype.getParameter;
       WebGLRenderingContext.prototype.getParameter = function (param: number) {
         if (param === 37445) return "Google Inc. (Apple)";
-        if (param === 37446) return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
+        if (param === 37446)
+          return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
         return getParameter.call(this, param);
       };
       const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
       WebGL2RenderingContext.prototype.getParameter = function (param: number) {
         if (param === 37445) return "Google Inc. (Apple)";
-        if (param === 37446) return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
+        if (param === 37446)
+          return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
         return getParameter2.call(this, param);
       };
     });
@@ -584,9 +593,7 @@ export async function extractWithBrowser(
       ({ maxImgs }) => {
         // Title
         const ogTitle =
-          document
-            .querySelector('meta[property="og:title"]')
-            ?.getAttribute("content") || "";
+          document.querySelector('meta[property="og:title"]')?.getAttribute("content") || "";
         const titleEl = document.querySelector("title");
         const title = ogTitle || titleEl?.textContent?.trim() || "";
 
@@ -621,9 +628,7 @@ export async function extractWithBrowser(
 
         // og:image first
         const ogImage =
-          document
-            .querySelector('meta[property="og:image"]')
-            ?.getAttribute("content") || "";
+          document.querySelector('meta[property="og:image"]')?.getAttribute("content") || "";
         if (ogImage) {
           try {
             const resolved = new URL(ogImage, location.href).toString();
@@ -636,18 +641,13 @@ export async function extractWithBrowser(
 
         // img tags from content area
         const container =
-          document.querySelector("article") ||
-          document.querySelector("main") ||
-          document.body;
+          document.querySelector("article") || document.querySelector("main") || document.body;
         if (container) {
           const imgEls = container.querySelectorAll("img");
           for (const img of imgEls) {
             if (images.length >= maxImgs) break;
             const src =
-              img.src ||
-              img.getAttribute("data-src") ||
-              img.getAttribute("data-original") ||
-              "";
+              img.src || img.getAttribute("data-src") || img.getAttribute("data-original") || "";
             if (!src || src.startsWith("data:")) continue;
             try {
               const resolved = new URL(src, location.href).toString();
@@ -685,7 +685,9 @@ export async function extractWithBrowser(
         finalHtml = replaced.html;
         finalImages = replaced.images;
       } catch (err) {
-        console.warn(`[browser] WeChat image replacement failed, using originals: ${err instanceof Error ? err.message : err}`);
+        console.warn(
+          `[browser] WeChat image replacement failed, using originals: ${err instanceof Error ? err.message : err}`,
+        );
       }
     }
 

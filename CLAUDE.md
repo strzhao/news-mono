@@ -19,6 +19,9 @@ article-db 是一个 AI 驱动的文章智能分析服务，基于 Next.js 15 (A
 npm run dev          # 本地开发服务器
 npm run build        # 生产构建
 npm run typecheck    # TypeScript 严格检查 (tsc --noEmit)
+npm run lint         # Biome lint 检查
+npm run lint:fix     # Biome 自动修复
+npm run format       # Biome 格式化
 npm test             # Vitest 运行全部测试
 npm run test:watch   # Vitest watch 模式
 ```
@@ -88,14 +91,15 @@ API 鉴权：JWT (`Authorization: Bearer`) 或 `ARTICLE_DB_API_TOKEN` (query tok
 - 文件名 kebab-case（如 `article-content-fetcher.ts`），Next.js handler 用 `route.ts`
 - 路径别名 `@/*` 映射到项目根目录
 - API 响应保持稳定：包含 `ok` 字段、明确错误消息、可预测的 key
-- 无 lint 工具；通过 typecheck + tests 保证质量
+- Biome 做 lint + format；通过 typecheck + lint + tests 保证质量
+- pre-commit hook (husky + lint-staged) 自动运行 biome check
 
 ## 测试规范
 
 - 框架：Vitest，Node 环境，globals 启用
 - 测试文件在 `tests-ts/`，命名 `*.test.ts`
 - API 路由测试需覆盖：认证失败、成功路径、空/回退路径、外部依赖失败路径
-- 提交前运行 `npm test` 和 `npm run typecheck`
+- 提交前运行 `npm test` 和 `npm run typecheck`（pre-commit hook 自动运行 lint）
 
 ## 提交规范
 

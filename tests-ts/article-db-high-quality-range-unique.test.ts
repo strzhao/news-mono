@@ -32,10 +32,34 @@ function row(params: {
 describe("buildFirstSeenUniqueHighQualityGroups", () => {
   it("keeps only the earliest date when the same article appears across days", () => {
     const rows = [
-      row({ articleId: "a_same", date: "2026-03-02", rankScore: 99, qualityScoreSnapshot: 88, title: "Same" }),
-      row({ articleId: "a_same", date: "2026-03-01", rankScore: 80, qualityScoreSnapshot: 88, title: "Same" }),
-      row({ articleId: "a_new", date: "2026-03-02", rankScore: 90, qualityScoreSnapshot: 86, title: "New" }),
-      row({ articleId: "a_old", date: "2026-03-01", rankScore: 70, qualityScoreSnapshot: 75, title: "Old" }),
+      row({
+        articleId: "a_same",
+        date: "2026-03-02",
+        rankScore: 99,
+        qualityScoreSnapshot: 88,
+        title: "Same",
+      }),
+      row({
+        articleId: "a_same",
+        date: "2026-03-01",
+        rankScore: 80,
+        qualityScoreSnapshot: 88,
+        title: "Same",
+      }),
+      row({
+        articleId: "a_new",
+        date: "2026-03-02",
+        rankScore: 90,
+        qualityScoreSnapshot: 86,
+        title: "New",
+      }),
+      row({
+        articleId: "a_old",
+        date: "2026-03-01",
+        rankScore: 70,
+        qualityScoreSnapshot: 75,
+        title: "Old",
+      }),
     ];
 
     const firstSeenByArticleId = new Map<string, string>([
@@ -61,7 +85,9 @@ describe("buildFirstSeenUniqueHighQualityGroups", () => {
   });
 
   it("excludes items whose first-seen date is outside the queried window", () => {
-    const rows = [row({ articleId: "a1", date: "2026-03-01", rankScore: 88, qualityScoreSnapshot: 88 })];
+    const rows = [
+      row({ articleId: "a1", date: "2026-03-01", rankScore: 88, qualityScoreSnapshot: 88 }),
+    ];
 
     const result = buildFirstSeenUniqueHighQualityGroups({
       rows,
@@ -77,9 +103,27 @@ describe("buildFirstSeenUniqueHighQualityGroups", () => {
 
   it("applies per-day limit after dedupe filtering", () => {
     const rows = [
-      row({ articleId: "top_duplicate", date: "2026-03-02", rankScore: 100, qualityScoreSnapshot: 90, title: "Dup" }),
-      row({ articleId: "keep_1", date: "2026-03-02", rankScore: 95, qualityScoreSnapshot: 89, title: "Keep1" }),
-      row({ articleId: "keep_2", date: "2026-03-02", rankScore: 90, qualityScoreSnapshot: 88, title: "Keep2" }),
+      row({
+        articleId: "top_duplicate",
+        date: "2026-03-02",
+        rankScore: 100,
+        qualityScoreSnapshot: 90,
+        title: "Dup",
+      }),
+      row({
+        articleId: "keep_1",
+        date: "2026-03-02",
+        rankScore: 95,
+        qualityScoreSnapshot: 89,
+        title: "Keep1",
+      }),
+      row({
+        articleId: "keep_2",
+        date: "2026-03-02",
+        rankScore: 90,
+        qualityScoreSnapshot: 88,
+        title: "Keep2",
+      }),
     ];
 
     const firstSeenByArticleId = new Map<string, string>([
@@ -104,7 +148,12 @@ describe("buildFirstSeenUniqueHighQualityGroups", () => {
   it("derives quality tier by score when quality_tier=all", () => {
     const rows = [
       row({ articleId: "high_one", date: "2026-03-02", rankScore: 90, qualityScoreSnapshot: 70 }),
-      row({ articleId: "general_one", date: "2026-03-02", rankScore: 80, qualityScoreSnapshot: 50 }),
+      row({
+        articleId: "general_one",
+        date: "2026-03-02",
+        rankScore: 80,
+        qualityScoreSnapshot: 50,
+      }),
     ];
 
     const result = buildFirstSeenUniqueHighQualityGroups({
@@ -123,7 +172,9 @@ describe("buildFirstSeenUniqueHighQualityGroups", () => {
   });
 
   it("keeps explicit quality tier for non-all responses", () => {
-    const rows = [row({ articleId: "g1", date: "2026-03-02", rankScore: 80, qualityScoreSnapshot: 40 })];
+    const rows = [
+      row({ articleId: "g1", date: "2026-03-02", rankScore: 80, qualityScoreSnapshot: 40 }),
+    ];
 
     const result = buildFirstSeenUniqueHighQualityGroups({
       rows,

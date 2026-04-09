@@ -523,8 +523,8 @@
 
     @media (prefers-reduced-motion: reduce) {
       * {
-        animation: none !important;
-        transition: none !important;
+        animation: none;
+        transition: none;
       }
     }
   </style>
@@ -627,7 +627,7 @@
     const readDigestIds = loadReadDigestIds();
 
     let currentDigestId = "";
-    let currentTab = "report";
+    let _currentTab = "report";
     let activeItem = null;
 
     function makeEmpty(message) {
@@ -703,8 +703,8 @@
       const historyGroups = [];
 
       for (const group of Array.isArray(groups) ? groups : []) {
-        const date = String(group && group.date || "").trim();
-        const items = Array.isArray(group && group.items) ? [...group.items] : [];
+        const date = String(group?.date || "").trim();
+        const items = Array.isArray(group?.items) ? [...group.items] : [];
         items.sort((a, b) => toMs(b.generated_at) - toMs(a.generated_at));
 
         if (date === todayKey) {
@@ -868,7 +868,7 @@
     }
 
     function extractTypesFromAnalysisItem(item) {
-      const parsed = item && item.analysis_json;
+      const parsed = item?.analysis_json;
       if (!parsed || typeof parsed !== "object") return [];
       const quality = parsed.quality_distribution;
       if (!quality || typeof quality !== "object") return [];
@@ -901,7 +901,7 @@
           } catch (error) {
             data = null;
           }
-          if (!response.ok || !data || !data.ok || !data.item) return null;
+          if (!response.ok || !data?.ok || !data.item) return null;
           return data.item;
         } catch (error) {
           return null;
@@ -925,7 +925,7 @@
       const response = await fetch(endpoint, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok || !data.ok || !data.item) {
-        const message = data && data.error ? String(data.error) : "读取失败";
+        const message = data?.error ? String(data.error) : "读取失败";
         throw new Error(message);
       }
 
@@ -994,7 +994,7 @@
     }
 
     async function hydrateDocMeta(item, sourceChipsEl, typeChipsEl) {
-      const digestId = String(item && item.digest_id || "").trim();
+      const digestId = String(item?.digest_id || "").trim();
       if (!digestId) {
         renderChipList(sourceChipsEl, [], "未知来源");
         renderChipList(typeChipsEl, [], "未分类");
@@ -1011,7 +1011,7 @@
     }
 
     function renderDocCard(item, { compact = false } = {}) {
-      const digestId = String(item && item.digest_id || "").trim();
+      const digestId = String(item?.digest_id || "").trim();
       const card = document.createElement("article");
       card.className = "doc-card";
       card.dataset.digestId = digestId;
@@ -1148,7 +1148,7 @@
     }
 
     function setActiveTab(tab) {
-      currentTab = tab;
+      _currentTab = tab;
       tabReportEl.classList.toggle("active", tab === "report");
       tabAnalysisEl.classList.toggle("active", tab === "analysis");
     }

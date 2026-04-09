@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { planWechatArchiveRepairs, type WechatArchiveRepairCandidate } from "@/lib/article-db/wechat-archive-repair";
+import {
+  planWechatArchiveRepairs,
+  type WechatArchiveRepairCandidate,
+} from "@/lib/article-db/wechat-archive-repair";
 
 function candidate(overrides: Partial<WechatArchiveRepairCandidate>): WechatArchiveRepairCandidate {
   return {

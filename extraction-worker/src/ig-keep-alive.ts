@@ -14,10 +14,11 @@
  * Usage: npm run ig-keep-alive
  * Recommended: run via cron every 12 hours.
  */
-import { type Page } from "playwright";
+
 import { stat } from "node:fs/promises";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
+import type { Page } from "playwright";
 import { launchBackgroundBrowser } from "./browser-runtime.js";
 
 const STATE_FILE = join(homedir(), ".instagram-session", "state.json");
@@ -92,7 +93,9 @@ async function main() {
 
   // Random startup delay: 0–10 minutes
   const delayMs = randInt(0, 10 * 60 * 1000);
-  console.log(`[${new Date().toISOString()}] Waiting ${Math.round(delayMs / 1000)}s before starting...`);
+  console.log(
+    `[${new Date().toISOString()}] Waiting ${Math.round(delayMs / 1000)}s before starting...`,
+  );
   await new Promise((r) => setTimeout(r, delayMs));
 
   const viewport = pickRandom(VIEWPORTS);
@@ -102,7 +105,8 @@ async function main() {
   try {
     const context = await browser.newContext({
       storageState: STATE_FILE,
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       locale: "en-US",
       viewport,
     });
@@ -146,7 +150,9 @@ async function main() {
     // Occasionally visit notifications (15% chance)
     if (Math.random() < 0.15) {
       try {
-        const notifLink = await page.$("a[href*='/accounts/activity/'], svg[aria-label='Notifications']");
+        const notifLink = await page.$(
+          "a[href*='/accounts/activity/'], svg[aria-label='Notifications']",
+        );
         if (notifLink) {
           await notifLink.click();
           await sleep(randInt(1500, 4000));
@@ -161,15 +167,17 @@ async function main() {
 
     // Check if still logged in
     const cookies = await context.cookies("https://www.instagram.com");
-    const hasAuth = cookies.some(
-      (c) => c.name === "sessionid" || c.name === "ds_user_id",
-    );
+    const hasAuth = cookies.some((c) => c.name === "sessionid" || c.name === "ds_user_id");
 
     if (hasAuth) {
       await context.storageState({ path: STATE_FILE });
-      console.log(`[${new Date().toISOString()}] Instagram session refreshed (${cookies.length} cookies, viewport ${viewport.width}x${viewport.height})`);
+      console.log(
+        `[${new Date().toISOString()}] Instagram session refreshed (${cookies.length} cookies, viewport ${viewport.width}x${viewport.height})`,
+      );
     } else {
-      console.error(`[${new Date().toISOString()}] Instagram session expired! Run 'npm run ig-login' to re-login.`);
+      console.error(
+        `[${new Date().toISOString()}] Instagram session expired! Run 'npm run ig-login' to re-login.`,
+      );
       process.exit(1);
     }
 

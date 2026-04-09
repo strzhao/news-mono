@@ -1,8 +1,10 @@
+import type { HighQualityArticleGroup } from "@/lib/article-db/types";
 import { fetchJson } from "@/lib/infra/http";
-import { HighQualityArticleGroup } from "@/lib/article-db/types";
 
 function baseUrl(): string {
-  return String(process.env.ARTICLE_DB_BASE_URL || "").trim().replace(/\/$/, "");
+  return String(process.env.ARTICLE_DB_BASE_URL || "")
+    .trim()
+    .replace(/\/$/, "");
 }
 
 function authHeaders(): HeadersInit {
@@ -109,12 +111,18 @@ export async function fetchHighQualityRange(
               ? entry.secondary_types.map((value) => String(value || "")).filter(Boolean)
               : [],
             tag_groups:
-              entry.tag_groups && typeof entry.tag_groups === "object" && !Array.isArray(entry.tag_groups)
+              entry.tag_groups &&
+              typeof entry.tag_groups === "object" &&
+              !Array.isArray(entry.tag_groups)
                 ? Object.fromEntries(
-                    Object.entries(entry.tag_groups as Record<string, unknown>).map(([groupKey, tags]) => [
-                      String(groupKey || "").trim(),
-                      Array.isArray(tags) ? tags.map((value) => String(value || "").trim()).filter(Boolean) : [],
-                    ]),
+                    Object.entries(entry.tag_groups as Record<string, unknown>).map(
+                      ([groupKey, tags]) => [
+                        String(groupKey || "").trim(),
+                        Array.isArray(tags)
+                          ? tags.map((value) => String(value || "").trim()).filter(Boolean)
+                          : [],
+                      ],
+                    ),
                   )
                 : {},
           };
@@ -134,7 +142,9 @@ export async function fetchHighQualityRange(
   };
 }
 
-export async function fetchFlomoNextPushBatch(params: FetchFlomoNextBatchParams): Promise<FetchFlomoNextBatchResult> {
+export async function fetchFlomoNextPushBatch(
+  params: FetchFlomoNextBatchParams,
+): Promise<FetchFlomoNextBatchResult> {
   const root = baseUrl();
   if (!root) {
     throw new Error("ARTICLE_DB_BASE_URL is not configured");
@@ -185,21 +195,27 @@ export async function markFlomoPushBatchSent(batchKey: string): Promise<{ consum
     throw new Error("Missing batchKey");
   }
 
-  const raw = (await fetchJson(`${root}/api/v1/flomo/push-batches/${encodeURIComponent(normalizedBatchKey)}/sent`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      ...authHeaders(),
+  const raw = (await fetchJson(
+    `${root}/api/v1/flomo/push-batches/${encodeURIComponent(normalizedBatchKey)}/sent`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        ...authHeaders(),
+      },
+      timeoutMs: 20_000,
     },
-    timeoutMs: 20_000,
-  })) as Record<string, unknown>;
+  )) as Record<string, unknown>;
 
   return {
     consumedCount: Number(raw.consumed_count || 0),
   };
 }
 
-export async function markFlomoPushBatchFailed(batchKey: string, errorMessage: string): Promise<void> {
+export async function markFlomoPushBatchFailed(
+  batchKey: string,
+  errorMessage: string,
+): Promise<void> {
   const root = baseUrl();
   if (!root) {
     throw new Error("ARTICLE_DB_BASE_URL is not configured");
@@ -209,16 +225,19 @@ export async function markFlomoPushBatchFailed(batchKey: string, errorMessage: s
     throw new Error("Missing batchKey");
   }
 
-  await fetchJson(`${root}/api/v1/flomo/push-batches/${encodeURIComponent(normalizedBatchKey)}/failed`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...authHeaders(),
+  await fetchJson(
+    `${root}/api/v1/flomo/push-batches/${encodeURIComponent(normalizedBatchKey)}/failed`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        error_message: String(errorMessage || "").slice(0, 2000),
+      }),
+      timeoutMs: 20_000,
     },
-    body: JSON.stringify({
-      error_message: String(errorMessage || "").slice(0, 2000),
-    }),
-    timeoutMs: 20_000,
-  });
+  );
 }

@@ -1,8 +1,11 @@
 import crypto from "node:crypto";
 import { getArchiveMarkdownMap, listArchives } from "@/lib/domain/archive-store";
-import { normalizeUrl } from "@/lib/domain/tracker-common";
 import { resolveFirstImageUrl } from "@/lib/domain/article-image";
-import { articleDbClientEnabled, fetchHighQualityRange } from "@/lib/integrations/article-db-client";
+import { normalizeUrl } from "@/lib/domain/tracker-common";
+import {
+  articleDbClientEnabled,
+  fetchHighQualityRange,
+} from "@/lib/integrations/article-db-client";
 
 const MULTISPACE_RE = /\s+/g;
 const HEADING_RE = /^###\s+\d+\.\s*(.+)$/;
@@ -74,14 +77,18 @@ function boundedIntAllowZero(value: number | undefined, max: number, fallback: n
 }
 
 function normalizeQualityTier(value: string | undefined): "high" | "general" | "all" {
-  const raw = String(value || "").trim().toLowerCase();
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase();
   if (["general", "normal", "common", "non_high"].includes(raw)) return "general";
   if (["all", "any"].includes(raw)) return "all";
   return "high";
 }
 
 function normalizeText(value: string, maxLen = 280): string {
-  const normalized = String(value || "").replace(MULTISPACE_RE, " ").trim();
+  const normalized = String(value || "")
+    .replace(MULTISPACE_RE, " ")
+    .trim();
   if (normalized.length <= maxLen) {
     return normalized;
   }
@@ -156,9 +163,7 @@ export function unwrapTrackedArticleUrl(rawUrl: string): string {
       if (target) {
         return target;
       }
-    } catch {
-      continue;
-    }
+    } catch {}
   }
 
   return value;
@@ -173,7 +178,11 @@ export function resolveArchiveArticleUrl(rawUrl: string): string {
   return String(normalized || unwrapped).trim();
 }
 
-export function buildArchiveArticleDedupeKey(params: { title: string; url: string; sourceHost: string }): string {
+export function buildArchiveArticleDedupeKey(params: {
+  title: string;
+  url: string;
+  sourceHost: string;
+}): string {
   const normalizedUrl = resolveArchiveArticleUrl(params.url);
   if (normalizedUrl) {
     return `url:${normalizedUrl}`;
@@ -287,7 +296,11 @@ export function aggregateArchiveArticlesFromDigests(
   digests: DigestArchiveSnapshot[],
   options: { articleLimitPerDay?: number } = {},
 ): ListArchiveArticlesResult {
-  const articleLimitPerDay = boundedIntAllowZero(options.articleLimitPerDay, 5000, DEFAULT_ARTICLE_LIMIT_PER_DAY);
+  const articleLimitPerDay = boundedIntAllowZero(
+    options.articleLimitPerDay,
+    5000,
+    DEFAULT_ARTICLE_LIMIT_PER_DAY,
+  );
 
   const orderedDigests = [...digests].sort((left, right) => {
     const leftTs = generatedAtMs(left.generated_at);
@@ -346,7 +359,9 @@ export function aggregateArchiveArticlesFromDigests(
     });
   });
 
-  const dates = Array.from(grouped.keys()).sort((left, right) => String(right).localeCompare(String(left)));
+  const dates = Array.from(grouped.keys()).sort((left, right) =>
+    String(right).localeCompare(String(left)),
+  );
   const groups: ArchiveArticleGroup[] = dates
     .map((date) => {
       const rows = [...(grouped.get(date) || [])].sort((left, right) => {
@@ -356,7 +371,9 @@ export function aggregateArchiveArticlesFromDigests(
         return left.sequence - right.sequence;
       });
 
-      const items = (articleLimitPerDay > 0 ? rows.slice(0, articleLimitPerDay) : rows).map((row) => row.item);
+      const items = (articleLimitPerDay > 0 ? rows.slice(0, articleLimitPerDay) : rows).map(
+        (row) => row.item,
+      );
       return {
         date,
         items,
@@ -417,21 +434,28 @@ async function enrichFirstImages(
   await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
 }
 
-export async function listArchiveArticles(options: {
-  days?: number;
-  limitPerDay?: number;
-  articleLimitPerDay?: number;
-  imageProbeLimit?: number;
-  qualityTier?: string;
-} = {}): Promise<ListArchiveArticlesResult> {
+export async function listArchiveArticles(
+  options: {
+    days?: number;
+    limitPerDay?: number;
+    articleLimitPerDay?: number;
+    imageProbeLimit?: number;
+    qualityTier?: string;
+  } = {},
+): Promise<ListArchiveArticlesResult> {
   const days = boundedInt(options.days, 1, 180, DEFAULT_DAYS);
   const limitPerDay = boundedInt(options.limitPerDay, 1, 200, DEFAULT_LIMIT_PER_DAY);
-  const articleLimitPerDay = boundedIntAllowZero(options.articleLimitPerDay, 5000, DEFAULT_ARTICLE_LIMIT_PER_DAY);
+  const articleLimitPerDay = boundedIntAllowZero(
+    options.articleLimitPerDay,
+    5000,
+    DEFAULT_ARTICLE_LIMIT_PER_DAY,
+  );
   const imageProbeLimit = boundedInt(options.imageProbeLimit, 0, 100, DEFAULT_IMAGE_PROBE_LIMIT);
   const qualityTier = normalizeQualityTier(options.qualityTier || DEFAULT_QUALITY_TIER);
 
   if (articleDbClientEnabled()) {
-    const timezoneName = String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+    const timezoneName =
+      String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
     const now = new Date();
     const formatter = new Intl.DateTimeFormat("en-CA", {
       timeZone: timezoneName,
@@ -440,11 +464,13 @@ export async function listArchiveArticles(options: {
       day: "2-digit",
     });
 
-    const [{ value: toYear }, , { value: toMonth }, , { value: toDay }] = formatter.formatToParts(now);
+    const [{ value: toYear }, , { value: toMonth }, , { value: toDay }] =
+      formatter.formatToParts(now);
     const toDate = `${toYear}-${toMonth}-${toDay}`;
 
     const fromDateObj = new Date(now.getTime() - Math.max(0, days - 1) * 86_400_000);
-    const [{ value: fromYear }, , { value: fromMonth }, , { value: fromDay }] = formatter.formatToParts(fromDateObj);
+    const [{ value: fromYear }, , { value: fromMonth }, , { value: fromDay }] =
+      formatter.formatToParts(fromDateObj);
     const fromDate = `${fromYear}-${fromMonth}-${fromDay}`;
 
     const remote = await fetchHighQualityRange({

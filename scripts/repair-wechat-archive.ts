@@ -10,13 +10,23 @@ function argValue(name: string): string {
 async function main(): Promise<void> {
   const fromDate = argValue("--from");
   const toDate = argValue("--to");
-  const timezoneName = argValue("--tz") || String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+  const timezoneName =
+    argValue("--tz") ||
+    String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() ||
+    "Asia/Shanghai";
   const maxAgeDays = getWechatFreshnessMaxAgeDays(
-    argValue("--max-age-days") || String(process.env.INGESTION_WECHAT_RESERVED_MAX_AGE_DAYS || process.env.WECHAT_SOGOU_MAX_AGE_DAYS || "3"),
+    argValue("--max-age-days") ||
+      String(
+        process.env.INGESTION_WECHAT_RESERVED_MAX_AGE_DAYS ||
+          process.env.WECHAT_SOGOU_MAX_AGE_DAYS ||
+          "3",
+      ),
   );
 
   if (!fromDate || !toDate) {
-    throw new Error("Usage: tsx scripts/repair-wechat-archive.ts --from YYYY-MM-DD --to YYYY-MM-DD [--max-age-days 3] [--tz Asia/Shanghai]");
+    throw new Error(
+      "Usage: tsx scripts/repair-wechat-archive.ts --from YYYY-MM-DD --to YYYY-MM-DD [--max-age-days 3] [--tz Asia/Shanghai]",
+    );
   }
 
   const result = await repairWechatDailyArchives({

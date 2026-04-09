@@ -1,6 +1,6 @@
-import { IngestionRunRow } from "@/lib/article-db/types";
-import { getPgPool } from "@/lib/infra/postgres";
 import { ensureArticleDbSchema } from "@/lib/article-db/repository";
+import type { IngestionRunRow } from "@/lib/article-db/types";
+import { getPgPool } from "@/lib/infra/postgres";
 
 function toIso(value: unknown): string {
   if (!value) return "";
@@ -63,10 +63,9 @@ function parseIngestionRunRow(row: Record<string, unknown>): IngestionRunRow {
   };
 }
 
-export async function listRecentIngestionRuns(params: {
-  days?: number;
-  limit?: number;
-} = {}): Promise<IngestionRunRow[]> {
+export async function listRecentIngestionRuns(
+  params: { days?: number; limit?: number } = {},
+): Promise<IngestionRunRow[]> {
   await ensureArticleDbSchema();
   const days = Math.max(1, Math.min(30, Math.trunc(params.days || 3)));
   const limit = Math.max(1, Math.min(168, Math.trunc(params.limit || 24)));

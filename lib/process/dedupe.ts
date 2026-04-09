@@ -1,5 +1,9 @@
-import { Article, DedupeStats } from "@/lib/domain/models";
-import { buildArticleIdentityKey, normalizeArticleTitleKey, normalizeArticleUrl } from "@/lib/domain/article-identity";
+import {
+  buildArticleIdentityKey,
+  normalizeArticleTitleKey,
+  normalizeArticleUrl,
+} from "@/lib/domain/article-identity";
+import type { Article, DedupeStats } from "@/lib/domain/models";
 
 export const normalizeUrl = normalizeArticleUrl;
 

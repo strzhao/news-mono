@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  DELETE as DELETE_TAG,
+  PUT as PUT_TAG,
+} from "@/app/api/v1/tags/groups/[group_key]/[tag_key]/route";
 import { GET as GET_TAG_GROUPS } from "@/app/api/v1/tags/groups/route";
-import { DELETE as DELETE_TAG, PUT as PUT_TAG } from "@/app/api/v1/tags/groups/[group_key]/[tag_key]/route";
-import { deactivateTagDefinition, listTagGroups, upsertTagDefinition } from "@/lib/article-db/repository";
+import {
+  deactivateTagDefinition,
+  listTagGroups,
+  upsertTagDefinition,
+} from "@/lib/article-db/repository";
 
 vi.mock("@/lib/article-db/repository", () => {
   return {

@@ -19,9 +19,11 @@ const {
 
 vi.mock("@/lib/article-db/repository", () => {
   return {
-    getNextRetryableFlomoArchivePushBatch: (...args: unknown[]) => getNextRetryableFlomoArchivePushBatchMock(...args),
+    getNextRetryableFlomoArchivePushBatch: (...args: unknown[]) =>
+      getNextRetryableFlomoArchivePushBatchMock(...args),
     listActiveTagDefinitions: (...args: unknown[]) => listActiveTagDefinitionsMock(...args),
-    listConsumedFlomoArchiveArticleIds: (...args: unknown[]) => listConsumedFlomoArchiveArticleIdsMock(...args),
+    listConsumedFlomoArchiveArticleIds: (...args: unknown[]) =>
+      listConsumedFlomoArchiveArticleIdsMock(...args),
     listHighQualityRange: (...args: unknown[]) => listHighQualityRangeMock(...args),
     createFlomoArchivePushBatch: (...args: unknown[]) => createFlomoArchivePushBatchMock(...args),
   };
@@ -46,7 +48,9 @@ describe("article-db flomo push batches next route", () => {
 
   it("returns 401 when article-db token does not match", async () => {
     process.env.ARTICLE_DB_API_TOKEN = "expected";
-    const response = await POST(new Request("https://example.com/api/v1/flomo/push-batches/next", { method: "POST" }));
+    const response = await POST(
+      new Request("https://example.com/api/v1/flomo/push-batches/next", { method: "POST" }),
+    );
     const payload = (await response.json()) as Record<string, unknown>;
 
     expect(response.status).toBe(401);

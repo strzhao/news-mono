@@ -1,6 +1,6 @@
 import { LRUCache } from "lru-cache";
-import { ArticleAssessment, SourceQualityScore } from "@/lib/domain/models";
-import { buildUpstashClientOrNone, UpstashClient } from "@/lib/infra/upstash";
+import type { ArticleAssessment, SourceQualityScore } from "@/lib/domain/models";
+import { buildUpstashClientOrNone, type UpstashClient } from "@/lib/infra/upstash";
 
 const ASSESSMENT_KEY_PREFIX = "cache:article_assessment";
 const ASSESSMENT_INDEX_KEY = "cache:article_assessment:index";
@@ -15,7 +15,7 @@ function normalizeTagKey(value: string): string {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -25,7 +25,7 @@ function normalizeTagValue(value: string): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -73,7 +73,13 @@ function parseTagGroups(value: unknown): Record<string, string[]> {
   Object.entries(payload as Record<string, unknown>).forEach(([groupKey, tags]) => {
     const normalizedGroup = normalizeTagKey(groupKey);
     if (!normalizedGroup) return;
-    const normalizedTags = Array.from(new Set(parseStringArray(tags).map((item) => normalizeTagValue(item)).filter(Boolean)));
+    const normalizedTags = Array.from(
+      new Set(
+        parseStringArray(tags)
+          .map((item) => normalizeTagValue(item))
+          .filter(Boolean),
+      ),
+    );
     if (!normalizedTags.length) return;
     result[normalizedGroup] = normalizedTags.slice(0, 24);
   });
@@ -105,13 +111,19 @@ function parseAssessment(cacheKey: string, payloadText: string): ArticleAssessme
 
   const tagGroups = parseTagGroups(payload.tag_groups);
   if (!tagGroups.type) {
-    const typeTags = Array.from(new Set([primaryType, ...secondaryTypes].map((item) => normalizeTagValue(item)).filter(Boolean)));
+    const typeTags = Array.from(
+      new Set(
+        [primaryType, ...secondaryTypes].map((item) => normalizeTagValue(item)).filter(Boolean),
+      ),
+    );
     if (typeTags.length) {
       tagGroups.type = typeTags.slice(0, 12);
     }
   }
   if (!tagGroups.role && bestForRoles.length) {
-    const roleTags = Array.from(new Set(bestForRoles.map((item) => normalizeTagValue(item)).filter(Boolean)));
+    const roleTags = Array.from(
+      new Set(bestForRoles.map((item) => normalizeTagValue(item)).filter(Boolean)),
+    );
     if (roleTags.length) {
       tagGroups.role = roleTags.slice(0, 12);
     }

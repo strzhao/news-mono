@@ -20,19 +20,23 @@
 import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 // Auto-detect system proxy and apply to Node.js fetch
-const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY;
+const proxyUrl =
+  process.env.https_proxy ||
+  process.env.HTTPS_PROXY ||
+  process.env.http_proxy ||
+  process.env.HTTP_PROXY;
 if (proxyUrl) {
   setGlobalDispatcher(new ProxyAgent(proxyUrl));
   console.log(`  Proxy: ${proxyUrl}`);
 }
 
-import { fetchPendingTasks, reportTaskComplete } from "./reporter.js";
-import { extractYouTube } from "./extractors/youtube.js";
-import { extractBilibili } from "./extractors/bilibili.js";
-import { extractXiaohongshu } from "./extractors/xiaohongshu.js";
-import { extractInstagram } from "./extractors/instagram.js";
-import { startServer } from "./server.js";
 import { warnIfBackgroundBrowserMissing } from "./browser-runtime.js";
+import { extractBilibili } from "./extractors/bilibili.js";
+import { extractInstagram } from "./extractors/instagram.js";
+import { extractXiaohongshu } from "./extractors/xiaohongshu.js";
+import { extractYouTube } from "./extractors/youtube.js";
+import { fetchPendingTasks, reportTaskComplete } from "./reporter.js";
+import { startServer } from "./server.js";
 
 const SERVER_MODE = process.argv.includes("--server");
 const POLL_MODE = process.argv.includes("--poll");
@@ -43,7 +47,12 @@ const ARTICLE_DB_FALLBACK_BASE_URLS = String(process.env.ARTICLE_DB_FALLBACK_BAS
   .map((value) => value.trim())
   .filter(Boolean);
 
-async function processTask(task: { task_id: string; url: string; platform: string; blob_ttl_hours: number }): Promise<void> {
+async function processTask(task: {
+  task_id: string;
+  url: string;
+  platform: string;
+  blob_ttl_hours: number;
+}): Promise<void> {
   console.log(`[${task.task_id}] Processing ${task.platform}: ${task.url}`);
 
   try {

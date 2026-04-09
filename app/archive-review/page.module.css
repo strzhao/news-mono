@@ -3,12 +3,8 @@
   margin: 24px auto 72px;
   color: #111317;
   font-family:
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Noto Sans CJK SC",
-    "Source Han Sans SC",
-    "Microsoft YaHei UI",
-    sans-serif;
+    "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC",
+    "Microsoft YaHei UI", sans-serif;
 }
 
 .homeLink {
@@ -38,8 +34,7 @@
   border-radius: 14px;
   background:
     radial-gradient(800px 220px at -5% -20%, #e9f1ff 0%, transparent 72%),
-    radial-gradient(600px 240px at 110% -40%, #f6efe2 0%, transparent 70%),
-    #ffffff;
+    radial-gradient(600px 240px at 110% -40%, #f6efe2 0%, transparent 70%), #ffffff;
   padding: 14px;
 }
 
@@ -1010,7 +1005,9 @@
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
   color: #4f5868;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .tab:hover {
@@ -1046,10 +1043,18 @@
   background: #fbfdff;
 }
 
-.channelAnalyticsCard[data-channel="rss"] { border-left: 3px solid #3b82f6; }
-.channelAnalyticsCard[data-channel="twitter"] { border-left: 3px solid #1d9bf0; }
-.channelAnalyticsCard[data-channel="wechat"] { border-left: 3px solid #07c160; }
-.channelAnalyticsCard[data-channel="github"] { border-left: 3px solid #8b5cf6; }
+.channelAnalyticsCard[data-channel="rss"] {
+  border-left: 3px solid #3b82f6;
+}
+.channelAnalyticsCard[data-channel="twitter"] {
+  border-left: 3px solid #1d9bf0;
+}
+.channelAnalyticsCard[data-channel="wechat"] {
+  border-left: 3px solid #07c160;
+}
+.channelAnalyticsCard[data-channel="github"] {
+  border-left: 3px solid #8b5cf6;
+}
 
 .channelAnalyticsCard h3 {
   margin: 0 0 10px;

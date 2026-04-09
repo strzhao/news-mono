@@ -45,7 +45,10 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const fromDate = normalizeDate(queryValue(url, "from"));
     const toDate = normalizeDate(queryValue(url, "to"));
-    const timezoneName = queryValue(url, "tz") || String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+    const timezoneName =
+      queryValue(url, "tz") ||
+      String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() ||
+      "Asia/Shanghai";
     const maxAgeDays = boundedInt(queryValue(url, "max_age_days") || "3", 3, 1, 30);
 
     const result = await repairWechatDailyArchives({
@@ -57,6 +60,10 @@ export async function GET(request: Request): Promise<Response> {
 
     return jsonResponse(200, { ok: true, ...result }, true);
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

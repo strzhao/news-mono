@@ -25,8 +25,19 @@ export async function GET(request: Request): Promise<Response> {
       wechat_sogou_author: s.wechatSogouAuthor ?? null,
     }));
 
-    return jsonResponse(200, { ok: true, count: sanitized.length, sources: sanitized } as unknown as Record<string, unknown>, true);
+    return jsonResponse(
+      200,
+      { ok: true, count: sanitized.length, sources: sanitized } as unknown as Record<
+        string,
+        unknown
+      >,
+      true,
+    );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

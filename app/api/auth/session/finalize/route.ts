@@ -90,7 +90,10 @@ export async function POST(request: Request): Promise<Response> {
     { status: 200 },
   );
   clearAuthStateCookie(response);
-  applyGatewaySessionCookie(response, createGatewaySessionCookieValue(authResult.user.id, authResult.user.email));
+  applyGatewaySessionCookie(
+    response,
+    createGatewaySessionCookieValue(authResult.user.id, authResult.user.email),
+  );
   return noStore(response);
 }
 

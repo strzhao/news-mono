@@ -1,4 +1,7 @@
-import { buildArticleIdentityKey, isPublishedWithinReportWindow } from "@/lib/domain/article-identity";
+import {
+  buildArticleIdentityKey,
+  isPublishedWithinReportWindow,
+} from "@/lib/domain/article-identity";
 
 export interface WechatArchiveRepairCandidate {
   date: string;
@@ -51,23 +54,24 @@ function parseIsoMs(value: string): number {
 function candidateScore(candidate: WechatArchiveRepairCandidate): number {
   const selectedBoost = candidate.selectedAt ? 1_000_000_000_000 : 0;
   const contentScore =
-    candidate.contentFullHtml.length * 20
-    + candidate.contentFullText.length * 10
-    + candidate.contentText.length * 5
-    + candidate.summaryRaw.length * 2
-    + candidate.leadParagraph.length;
+    candidate.contentFullHtml.length * 20 +
+    candidate.contentFullText.length * 10 +
+    candidate.contentText.length * 5 +
+    candidate.summaryRaw.length * 2 +
+    candidate.leadParagraph.length;
   const qualityScore = Math.round(candidate.selectedRankScore || candidate.analyzedRankScore || 0);
   return selectedBoost + qualityScore + contentScore + parseIsoMs(candidate.updatedAt) / 1_000_000;
 }
 
-function addDelete(target: Map<string, { date: string; articleId: string }>, date: string, articleId: string): void {
+function addDelete(
+  target: Map<string, { date: string; articleId: string }>,
+  date: string,
+  articleId: string,
+): void {
   target.set(`${date}::${articleId}`, { date, articleId });
 }
 
-function mergeDailyUpsert(
-  target: Map<string, DailyUpsertRow>,
-  row: DailyUpsertRow,
-): void {
+function mergeDailyUpsert(target: Map<string, DailyUpsertRow>, row: DailyUpsertRow): void {
   const key = `${row.date}::${row.articleId}`;
   const existing = target.get(key);
   if (!existing) {
@@ -115,7 +119,9 @@ export function planWechatArchiveRepairs(
   }
 
   for (const group of byIdentity.values()) {
-    const sortedCandidates = [...group].sort((left, right) => candidateScore(right) - candidateScore(left));
+    const sortedCandidates = [...group].sort(
+      (left, right) => candidateScore(right) - candidateScore(left),
+    );
     const survivor = sortedCandidates[0];
     survivorArticleIds.add(survivor.articleId);
 

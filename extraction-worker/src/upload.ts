@@ -1,9 +1,10 @@
 /**
  * Upload extracted files to Vercel Blob.
  */
-import { put } from "@vercel/blob";
+
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
+import { put } from "@vercel/blob";
 
 interface UploadResult {
   url: string;

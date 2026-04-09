@@ -28,7 +28,11 @@ export async function POST(
 ): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   const params = await context.params;
@@ -54,6 +58,10 @@ export async function POST(
       true,
     );
   } catch (error) {
-    return jsonResponse(400, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      400,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

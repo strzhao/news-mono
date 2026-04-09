@@ -1,4 +1,4 @@
-import { DailyDigest, ScoredArticle, WORTH_MUST_READ } from "@/lib/domain/models";
+import { type DailyDigest, type ScoredArticle, WORTH_MUST_READ } from "@/lib/domain/models";
 
 export function renderDigestMarkdown(
   digest: DailyDigest,

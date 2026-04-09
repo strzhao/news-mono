@@ -17,7 +17,11 @@ describe("wechat repair route", () => {
 
   it("returns 401 when missing authorization", async () => {
     process.env.CRON_SECRET = "secret";
-    const response = await GET(new Request("https://example.com/api/v1/maintenance/wechat-repair?from=2026-04-07&to=2026-04-09"));
+    const response = await GET(
+      new Request(
+        "https://example.com/api/v1/maintenance/wechat-repair?from=2026-04-07&to=2026-04-09",
+      ),
+    );
     const payload = (await response.json()) as Record<string, unknown>;
 
     expect(response.status).toBe(401);
@@ -43,11 +47,14 @@ describe("wechat repair route", () => {
     });
 
     const response = await GET(
-      new Request("https://example.com/api/v1/maintenance/wechat-repair?from=2026-04-07&to=2026-04-09&max_age_days=3", {
-        headers: {
-          Authorization: "Bearer secret",
+      new Request(
+        "https://example.com/api/v1/maintenance/wechat-repair?from=2026-04-07&to=2026-04-09&max_age_days=3",
+        {
+          headers: {
+            Authorization: "Bearer secret",
+          },
         },
-      }),
+      ),
     );
     const payload = (await response.json()) as Record<string, unknown>;
 

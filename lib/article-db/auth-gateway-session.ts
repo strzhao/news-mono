@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 
 export const AUTH_STATE_COOKIE_NAME = "article_db_auth_state";
 export const GATEWAY_SESSION_COOKIE_NAME = "article_db_gateway_session";
@@ -101,13 +101,17 @@ function parseCookie(request: Request, name: string): string {
 
 export function normalizeNextPath(raw: string, fallback = "/archive-review"): string {
   const value = String(raw || "").trim();
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+  if (!value?.startsWith("/") || value.startsWith("//")) {
     return fallback;
   }
   return value;
 }
 
-export function createAuthStateCookieValue(state: string, nextPath: string, ttlSeconds = 600): string {
+export function createAuthStateCookieValue(
+  state: string,
+  nextPath: string,
+  ttlSeconds = 600,
+): string {
   const now = Date.now();
   return encodeSignedPayload({
     state,
@@ -117,7 +121,10 @@ export function createAuthStateCookieValue(state: string, nextPath: string, ttlS
   });
 }
 
-export function verifyAuthStateCookieValue(raw: string, expectedState: string): AuthStatePayload | null {
+export function verifyAuthStateCookieValue(
+  raw: string,
+  expectedState: string,
+): AuthStatePayload | null {
   const decoded = decodeSignedPayload(raw);
   if (!decoded) {
     return null;
@@ -146,11 +153,17 @@ export function verifyAuthStateCookieValue(raw: string, expectedState: string): 
   };
 }
 
-export function createGatewaySessionCookieValue(userId: string, email: string, ttlSeconds = 2_592_000): string {
+export function createGatewaySessionCookieValue(
+  userId: string,
+  email: string,
+  ttlSeconds = 2_592_000,
+): string {
   const now = Date.now();
   return encodeSignedPayload({
     userId: String(userId || "").trim(),
-    email: String(email || "").trim().toLowerCase(),
+    email: String(email || "")
+      .trim()
+      .toLowerCase(),
     issuedAt: now,
     expiresAt: now + ttlSeconds * 1000,
   });
@@ -163,7 +176,9 @@ export function verifyGatewaySessionCookieValue(raw: string): GatewaySessionPayl
   }
 
   const userId = String(decoded.userId || "").trim();
-  const email = String(decoded.email || "").trim().toLowerCase();
+  const email = String(decoded.email || "")
+    .trim()
+    .toLowerCase();
   const issuedAt = Number(decoded.issuedAt || 0);
   const expiresAt = Number(decoded.expiresAt || 0);
 

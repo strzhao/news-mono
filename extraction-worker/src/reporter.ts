@@ -28,7 +28,9 @@ interface ReportPayload {
 }
 
 function normalizeBaseUrl(value: string): string {
-  return String(value || "").trim().replace(/\/$/, "");
+  return String(value || "")
+    .trim()
+    .replace(/\/$/, "");
 }
 
 const ARTICLE_DB_BASE_URL = normalizeBaseUrl(process.env.ARTICLE_DB_BASE_URL || "");
@@ -58,11 +60,7 @@ function describeBaseUrl(baseUrl: string): string {
   }
 }
 
-async function fetchWithRetry(
-  url: string,
-  init: RequestInit,
-  retries = 3,
-): Promise<Response> {
+async function fetchWithRetry(url: string, init: RequestInit, retries = 3): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     let timeout: ReturnType<typeof setTimeout> | null = null;
     try {
@@ -73,7 +71,9 @@ async function fetchWithRetry(
     } catch (error) {
       if (i === retries - 1) throw error;
       const delay = (i + 1) * 3000;
-      console.log(`[reporter] Retry ${i + 1}/${retries} in ${delay}ms: ${error instanceof Error ? error.message : error}`);
+      console.log(
+        `[reporter] Retry ${i + 1}/${retries} in ${delay}ms: ${error instanceof Error ? error.message : error}`,
+      );
       await new Promise((r) => setTimeout(r, delay));
     } finally {
       if (timeout) clearTimeout(timeout);
@@ -129,15 +129,18 @@ async function fetchArticleDb(
 }
 
 export async function reportTaskComplete(taskId: string, payload: ReportPayload): Promise<void> {
-  const response = await fetchArticleDb(`/api/v1/extract-url/${encodeURIComponent(taskId)}/complete`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...authHeaders(),
+  const response = await fetchArticleDb(
+    `/api/v1/extract-url/${encodeURIComponent(taskId)}/complete`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+  );
 
   if (!response.ok) {
     const text = await response.text();

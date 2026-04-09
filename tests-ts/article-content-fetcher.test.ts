@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { extractRelatedImagesFromHtml, fetchArticleContent } from "@/lib/fetch/article-content-fetcher";
+import {
+  extractRelatedImagesFromHtml,
+  fetchArticleContent,
+} from "@/lib/fetch/article-content-fetcher";
 
 describe("article content fetcher", () => {
   it("extractRelatedImagesFromHtml keeps meta + article images and normalizes relative urls", () => {

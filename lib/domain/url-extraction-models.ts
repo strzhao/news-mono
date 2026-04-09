@@ -1,8 +1,23 @@
-export type ExtractionPlatform = "youtube" | "bilibili" | "twitter" | "xiaohongshu" | "instagram" | "wechat" | "webpage" | "unknown";
+export type ExtractionPlatform =
+  | "youtube"
+  | "bilibili"
+  | "twitter"
+  | "xiaohongshu"
+  | "instagram"
+  | "wechat"
+  | "webpage"
+  | "unknown";
 
 export type ExtractionStatus = "pending" | "processing" | "completed" | "failed";
 
-export type ResourceType = "video" | "audio" | "subtitle" | "thumbnail" | "image" | "text" | "metadata";
+export type ResourceType =
+  | "video"
+  | "audio"
+  | "subtitle"
+  | "thumbnail"
+  | "image"
+  | "text"
+  | "metadata";
 
 export interface ExtractedResource {
   type: ResourceType;

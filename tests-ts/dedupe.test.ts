@@ -55,7 +55,15 @@ describe("dedupe", () => {
     };
 
     const [deduped, stats] = dedupeArticles(
-      [baseArticle, { ...baseArticle, id: "2", url: "https://mp.weixin.qq.com/s?new=1&signature=xyz&src=11&timestamp=2&ver=2", infoUrl: "https://mp.weixin.qq.com/s?new=1&signature=xyz&src=11&timestamp=2&ver=2" }],
+      [
+        baseArticle,
+        {
+          ...baseArticle,
+          id: "2",
+          url: "https://mp.weixin.qq.com/s?new=1&signature=xyz&src=11&timestamp=2&ver=2",
+          infoUrl: "https://mp.weixin.qq.com/s?new=1&signature=xyz&src=11&timestamp=2&ver=2",
+        },
+      ],
       0.93,
       true,
     ) as any;

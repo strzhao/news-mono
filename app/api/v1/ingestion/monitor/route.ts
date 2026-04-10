@@ -1,7 +1,7 @@
 import { checkIngestionHealth, formatIngestionAlert } from "@/lib/article-db/ingestion-monitor";
 import { listRecentIngestionRuns } from "@/lib/article-db/ingestion-runs";
 import { jsonResponse } from "@/lib/infra/route-utils";
-import { FlomoClient } from "@/lib/integrations/flomo-client";
+import { AiTodoClient } from "@/lib/integrations/ai-todo-client";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -56,12 +56,14 @@ export async function GET(request: Request): Promise<Response> {
     let alertError: string | null = null;
 
     if (!result.healthy && shouldAlert) {
-      const flomoUrl = String(process.env.FLOMO_API_URL || "").trim();
-      if (flomoUrl) {
+      const todoUrl = String(process.env.AI_TODO_API_URL || "").trim();
+      const todoSpaceId = String(process.env.AI_TODO_SPACE_ID || "").trim();
+      const todoToken = String(process.env.AI_TODO_SPACE_TOKEN || "").trim();
+      if (todoUrl && todoSpaceId && todoToken) {
         try {
-          const client = new FlomoClient(flomoUrl);
+          const client = new AiTodoClient(todoUrl, todoSpaceId, todoToken);
           const payload = formatIngestionAlert(result);
-          await client.send(payload);
+          await client.createNote(payload);
           alertSent = true;
         } catch (err) {
           alertError = err instanceof Error ? err.message : String(err);

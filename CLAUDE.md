@@ -11,7 +11,7 @@ article-db 是一个 AI 驱动的文章智能分析服务，基于 Next.js 15 (A
 - 自定义域名: https://article-db.stringzhao.life
 - Vercel 域名: https://article-db.vercel.app（国内不可达，操作时用自定义域名）
 - Vercel 区域: sin1 (新加坡)
-- Cron: ingestion 每小时执行，blob-cleanup 每日 4:00 UTC
+- Cron: ingestion 每小时执行，ingestion-monitor 每 3 小时执行，blob-cleanup 每日 4:00 UTC
 
 ## 常用命令
 
@@ -83,6 +83,7 @@ API 鉴权：JWT (`Authorization: Bearer`) 或 `ARTICLE_DB_API_TOKEN` (query tok
 必须：`DATABASE_URL`, `DEEPSEEK_API_KEY`
 认证：`AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URL`, `AUTH_EMAIL_ALLOWLIST`
 运行：`CRON_SECRET`, `ARTICLE_DB_API_TOKEN`, `RSSHUB_BASE_URL`, `BROWSER_EXTRACT_URL`
+监控告警：`AI_TODO_API_URL`, `AI_TODO_SPACE_ID`, `AI_TODO_SPACE_TOKEN`（空间 API Token，从 ai-todo 空间设置获取）
 缓存：`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
 
 ## 编码规范

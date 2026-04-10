@@ -1,5 +1,5 @@
 import type { IngestionRunRow } from "@/lib/article-db/types";
-import type { FlomoPayload } from "@/lib/integrations/flomo-client";
+import type { AiTodoNotePayload } from "@/lib/integrations/ai-todo-client";
 
 export interface IngestionHealthResult {
   healthy: boolean;
@@ -67,11 +67,9 @@ export function checkIngestionHealth(
   };
 }
 
-export function formatIngestionAlert(result: IngestionHealthResult): FlomoPayload {
+export function formatIngestionAlert(result: IngestionHealthResult): AiTodoNotePayload {
   const lines = [
-    "#monitoring/ingestion_alert",
-    "",
-    `Ingestion pipeline 已超过 ${result.hoursSinceLastSuccess === Number.POSITIVE_INFINITY ? "∞" : result.hoursSinceLastSuccess} 小时未成功运行。`,
+    `[告警] Ingestion pipeline 已超过 ${result.hoursSinceLastSuccess === Number.POSITIVE_INFINITY ? "∞" : result.hoursSinceLastSuccess} 小时未成功运行。`,
     "",
   ];
 
@@ -91,9 +89,8 @@ export function formatIngestionAlert(result: IngestionHealthResult): FlomoPayloa
   lines.push(`告警阈值: ${result.thresholdHours}h`);
   lines.push(`检查时间: ${result.checkedAt}`);
 
-  const dateKey = result.checkedAt.slice(0, 10);
   return {
-    content: lines.join("\n"),
-    dedupeKey: `ingestion-alert-${dateKey}`,
+    title: lines.join("\n"),
+    tags: ["monitoring", "ingestion_alert"],
   };
 }

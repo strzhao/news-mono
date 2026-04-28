@@ -41,20 +41,22 @@ export interface BrowserExtractResult {
 }
 
 // ---------------------------------------------------------------------------
-// Browser pool — lazy singleton with idle timeout
+// Browser pool — long-lived singleton with health check + graceful restart
 // ---------------------------------------------------------------------------
 
 const MAX_CONCURRENT_PAGES = 3;
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_REQUESTS_BEFORE_RESTART = 100;
+const HEALTH_CHECK_INTERVAL_MS = 60_000;
 
 let browserInstance: Browser | null = null;
 let browserPid: number | null = null;
 let browserLaunchPromise: Promise<Browser> | null = null;
 let activePages = 0;
 let activeRequests = 0;
-let idleTimer: ReturnType<typeof setTimeout> | null = null;
+let healthCheckTimer: ReturnType<typeof setInterval> | null = null;
 let totalLaunches = 0;
 let totalCloses = 0;
+let totalRequestsServed = 0;
 let requestSequence = 0;
 const backgroundBrowserKind = getBackgroundBrowserKind();
 
@@ -160,11 +162,6 @@ async function closeBrowserInstance(reason: string): Promise<void> {
 }
 
 async function acquireBrowser(): Promise<Browser> {
-  if (idleTimer) {
-    clearTimeout(idleTimer);
-    idleTimer = null;
-  }
-
   if (browserInstance) {
     if (browserInstance.isConnected()) {
       activePages++;
@@ -234,24 +231,91 @@ function detectLaunchedBrowserPid(existingChildPids: Set<number>): number | null
 
 function releasePage(): void {
   activePages = Math.max(0, activePages - 1);
-  if (activePages === 0) {
-    idleTimer = setTimeout(async () => {
-      if (browserInstance && activePages === 0) {
-        await closeBrowserInstance("idle-timeout");
-      }
-    }, IDLE_TIMEOUT_MS);
+  totalRequestsServed++;
+  if (totalRequestsServed >= MAX_REQUESTS_BEFORE_RESTART && activePages === 0) {
+    logPoolEvent("graceful-restart-scheduled", { total_requests_served: totalRequestsServed });
+    totalRequestsServed = 0;
+    void closeBrowserInstance("graceful-restart-after-max-requests");
   }
+}
+
+/** Start health-check timer — verifies browser is connected every 60 s. */
+function startHealthCheck(): void {
+  if (healthCheckTimer) return;
+  healthCheckTimer = setInterval(async () => {
+    if (browserInstance && !browserInstance.isConnected()) {
+      logPoolEvent("health-check-reconnect", { reason: "isConnected=false" });
+      browserInstance = null;
+      browserPid = null;
+    }
+    if (!browserInstance && !browserLaunchPromise && activeRequests === 0) {
+      // Pre-warm a fresh browser for the next request
+      logPoolEvent("health-check-prewarm");
+      try {
+        const existingChildPids = listChildBrowserPids();
+        browserLaunchPromise = (async () => {
+          const browser = await launchBackgroundBrowser();
+          browserInstance = browser;
+          browserPid = detectLaunchedBrowserPid(existingChildPids);
+          totalLaunches++;
+          browser.on("disconnected", () => {
+            if (browserInstance === browser) {
+              logPoolEvent("browser-disconnected", { browser_pid: browserPid });
+              browserInstance = null;
+              browserPid = null;
+            }
+          });
+          logPoolEvent("browser-launched", {
+            browser_pid: browserPid,
+            headless: true,
+            proxy_enabled: hasProxyServer(),
+            trigger: "health-check-prewarm",
+          });
+          return browser;
+        })();
+        await browserLaunchPromise;
+      } catch (err) {
+        logPoolEvent("health-check-prewarm-failed", { error: formatError(err) });
+      } finally {
+        browserLaunchPromise = null;
+      }
+    }
+  }, HEALTH_CHECK_INTERVAL_MS);
+  healthCheckTimer.unref?.();
 }
 
 /** Gracefully shut down the browser pool. */
 export async function closeBrowserPool(reason = "shutdown"): Promise<void> {
-  if (idleTimer) {
-    clearTimeout(idleTimer);
-    idleTimer = null;
+  if (healthCheckTimer) {
+    clearInterval(healthCheckTimer);
+    healthCheckTimer = null;
   }
   logPoolEvent("pool-close-requested", { reason });
   await closeBrowserInstance(reason);
 }
+
+export function getBrowserPoolStats(): {
+  totalLaunches: number;
+  totalCloses: number;
+  activePages: number;
+  activeRequests: number;
+  browserConnected: boolean;
+  browserPid: number | null;
+  totalRequestsServed: number;
+} {
+  return {
+    totalLaunches,
+    totalCloses,
+    activePages,
+    activeRequests,
+    browserConnected: Boolean(browserInstance?.isConnected()),
+    browserPid,
+    totalRequestsServed,
+  };
+}
+
+// Start health-check on module load
+startHealthCheck();
 
 // ---------------------------------------------------------------------------
 // Concurrency semaphore
@@ -276,6 +340,59 @@ function releaseSlot(): void {
 
 // ---------------------------------------------------------------------------
 // HTML helpers (inline, no external deps)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Circuit breaker for persistently failing URLs
+// ---------------------------------------------------------------------------
+
+const FAILURE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const MAX_FAILURES_BEFORE_BLOCK = 3;
+const MAX_FAILURE_CACHE_SIZE = 500;
+const failedUrlCache = new Map<string, { count: number; lastFailed: number }>();
+
+function shouldBlockUrl(url: string): boolean {
+  const entry = failedUrlCache.get(url);
+  if (!entry) return false;
+  if (Date.now() - entry.lastFailed > FAILURE_CACHE_TTL_MS) {
+    failedUrlCache.delete(url);
+    return false;
+  }
+  return entry.count >= MAX_FAILURES_BEFORE_BLOCK;
+}
+
+function recordUrlFailure(url: string): void {
+  const entry = failedUrlCache.get(url);
+  if (entry) {
+    entry.count++;
+    entry.lastFailed = Date.now();
+  } else {
+    // Evict oldest if cache is full
+    if (failedUrlCache.size >= MAX_FAILURE_CACHE_SIZE) {
+      const oldest = [...failedUrlCache.entries()].sort(
+        (a, b) => a[1].lastFailed - b[1].lastFailed,
+      )[0];
+      if (oldest) failedUrlCache.delete(oldest[0]);
+    }
+    failedUrlCache.set(url, { count: 1, lastFailed: Date.now() });
+  }
+}
+
+export function getCircuitBreakerStats(): { blockedUrls: number; cacheSize: number } {
+  // Clean expired entries first
+  const now = Date.now();
+  for (const [key, entry] of failedUrlCache) {
+    if (now - entry.lastFailed > FAILURE_CACHE_TTL_MS) failedUrlCache.delete(key);
+  }
+  return {
+    blockedUrls: [...failedUrlCache.values()].filter((e) => e.count >= MAX_FAILURES_BEFORE_BLOCK)
+      .length,
+    cacheSize: failedUrlCache.size,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// HTML helpers (inline, no external deps) — continued
 // ---------------------------------------------------------------------------
 
 function removeNoiseTags(html: string): string {
@@ -476,6 +593,13 @@ export async function extractWithBrowser(
   const requestId = `req-${++requestSequence}`;
   const host = requestHost(url);
   const startedAt = Date.now();
+
+  if (shouldBlockUrl(url)) {
+    logPoolEvent("request-circuit-breaker", { request_id: requestId, host, url });
+    throw new Error(
+      `URL blocked by circuit breaker after ${MAX_FAILURES_BEFORE_BLOCK} consecutive failures: ${url}`,
+    );
+  }
 
   await acquireSlot();
   let browser: Browser | null = null;
@@ -704,6 +828,7 @@ export async function extractWithBrowser(
   } catch (error) {
     outcome = "error";
     requestError = formatError(error);
+    recordUrlFailure(url);
     logPoolEvent("request-failed", {
       request_id: requestId,
       host,

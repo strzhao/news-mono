@@ -8,12 +8,15 @@
  * Auth: Bearer token via BROWSER_EXTRACT_AUTH_TOKEN env var.
  * Port: BROWSER_EXTRACT_PORT env var (default 3100).
  */
+import { execFileSync } from "node:child_process";
 import http from "node:http";
 import {
   type BrowserExtractOptions,
   type BrowserExtractResult,
   closeBrowserPool,
   extractWithBrowser,
+  getBrowserPoolStats,
+  getCircuitBreakerStats,
 } from "./extractors/browser.js";
 
 const PORT = Number(process.env.BROWSER_EXTRACT_PORT) || 3100;
@@ -127,10 +130,55 @@ async function handleExtract(req: http.IncomingMessage, res: http.ServerResponse
 }
 
 function handleHealth(_req: http.IncomingMessage, res: http.ServerResponse): void {
+  const poolStats = getBrowserPoolStats();
+  const cbStats = getCircuitBreakerStats();
   json(res, 200, {
     ok: true,
     uptime_seconds: Math.floor((Date.now() - startedAt) / 1000),
+    browser_pool: poolStats,
+    circuit_breaker: cbStats,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Startup: kill orphaned Chrome processes from previous server runs
+// ---------------------------------------------------------------------------
+
+function cleanupOrphanedChrome(): void {
+  try {
+    const output = execFileSync("ps", ["-axo", "pid=,ppid=,command="], { encoding: "utf8" });
+    let cleaned = 0;
+    for (const line of output.split("\n")) {
+      const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
+      if (!match) continue;
+      const pid = Number.parseInt(match[1], 10);
+      const ppid = Number.parseInt(match[2], 10);
+      const command = match[3] || "";
+      if (!Number.isFinite(pid) || pid === process.pid) continue;
+      // Skip children of the current process (they're managed by the pool)
+      if (ppid === process.pid) continue;
+      // Only target headless-shell processes (Playwright's headless runtime),
+      // NOT regular Chrome/Chromium browsers the user may have open
+      if (!command.includes("chrome-headless-shell")) continue;
+      try {
+        process.kill(pid, "SIGTERM");
+        cleaned++;
+      } catch {
+        // Process may have already exited — ignore
+      }
+    }
+    if (cleaned > 0) {
+      console.log(
+        `[server] Cleaned up ${cleaned} orphaned chrome-headless-shell process(es) at startup`,
+      );
+    } else {
+      console.log("[server] No orphaned chrome-headless-shell processes found at startup");
+    }
+  } catch (err) {
+    console.warn(
+      `[server] cleanupOrphanedChrome failed: ${err instanceof Error ? err.message : err}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +186,8 @@ function handleHealth(_req: http.IncomingMessage, res: http.ServerResponse): voi
 // ---------------------------------------------------------------------------
 
 export function startServer(): http.Server {
+  cleanupOrphanedChrome();
+
   const server = http.createServer(async (req, res) => {
     const method = req.method || "";
     const pathname = (req.url || "").split("?")[0];

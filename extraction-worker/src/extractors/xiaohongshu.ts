@@ -341,15 +341,12 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
       return result;
     }, extractNoteId(url));
 
-    await browser.close();
-
     if (!noteData || (!noteData.title && !noteData.desc && noteData.imageUrls.length === 0)) {
       return null;
     }
     return noteData as NoteData;
-  } catch (err) {
+  } finally {
     await browser.close().catch(() => {});
-    throw err;
   }
 }
 

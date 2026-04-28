@@ -5,7 +5,17 @@ import { type Browser, chromium, type LaunchOptions } from "playwright";
 const BACKGROUND_BROWSER_KIND = "chromium";
 const INTERACTIVE_BROWSER_KIND = "chrome";
 const BACKGROUND_BROWSER_INSTALL_COMMAND = "npm run install:chromium";
-const AUTOMATION_ARGS = ["--disable-blink-features=AutomationControlled"];
+const AUTOMATION_ARGS = [
+  "--disable-blink-features=AutomationControlled",
+  "--disable-gpu",
+  "--disable-dev-shm-usage",
+  "--no-zygote",
+  "--disable-breakpad",
+  "--disable-component-update",
+  "--disable-default-apps",
+  "--disable-extensions",
+  "--no-first-run",
+];
 
 function currentProxyServer(): string | undefined {
   return (

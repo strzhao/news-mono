@@ -291,7 +291,6 @@ async function extractViaPlaywright(
     // If we captured GraphQL/API data, use it
     if (capturedMedia) {
       console.log(`[${taskId}] Playwright: captured API response`);
-      await browser.close();
       return parseGraphQLMedia(capturedMedia);
     }
 
@@ -394,8 +393,6 @@ async function extractViaPlaywright(
       return result;
     });
 
-    await browser.close();
-
     // Build PostData from DOM
     const mediaItems: MediaItem[] = [];
     if (domData.videoUrl) {
@@ -420,9 +417,8 @@ async function extractViaPlaywright(
       viewCount: 0,
       mediaItems,
     };
-  } catch (err) {
+  } finally {
     await browser.close().catch(() => {});
-    throw err;
   }
 }
 

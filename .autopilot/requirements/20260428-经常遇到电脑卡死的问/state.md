@@ -1,6 +1,6 @@
 ---
 active: true
-phase: "merge"
+phase: "done"
 gate: ""
 iteration: 1
 max_iterations: 30
@@ -11,9 +11,9 @@ plan_mode: ""
 brief_file: ""
 next_task: ""
 auto_approve: false
-knowledge_extracted: ""
+knowledge_extracted: "skipped"
 task_dir: "/Users/stringzhao/workspace/agi/live/article-db/.autopilot/requirements/20260428-经常遇到电脑卡死的问"
-session_id: 
+session_id: 43c2a2db-3645-4f9d-91f4-8c047cff1ab4
 started_at: "2026-04-28T08:49:53Z"
 ---
 

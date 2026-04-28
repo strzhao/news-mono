@@ -86,6 +86,15 @@ function parseTagGroups(value: unknown): Record<string, string[]> {
   return result;
 }
 
+function coerceScore(value: unknown): number {
+  let score = Number(value);
+  if (!Number.isFinite(score)) score = 0;
+  if (score >= 0 && score <= 10) {
+    score *= 10;
+  }
+  return Math.max(0, Math.min(100, score));
+}
+
 function coerceConfidence(value: unknown): number {
   const confidence = Number(value);
   if (!Number.isFinite(confidence)) return 0;
@@ -142,7 +151,7 @@ function parseAssessment(cacheKey: string, payloadText: string): ArticleAssessme
     }
   }
 
-  const qualityScore = Number(payload.quality_score || 0);
+  const qualityScore = coerceScore(payload.quality_score);
   let confidence = coerceConfidence(payload.confidence);
   if (!Object.keys(tagGroups).length) {
     confidence = Math.min(confidence, 0.85);
@@ -158,16 +167,16 @@ function parseAssessment(cacheKey: string, payloadText: string): ArticleAssessme
     articleId: String(payload.article_id || ""),
     worth: String(payload.worth || "跳过") as ArticleAssessment["worth"],
     qualityScore,
-    practicalityScore: Number(payload.practicality_score || 0),
-    actionabilityScore: Number(payload.actionability_score || 0),
-    noveltyScore: Number(payload.novelty_score || 0),
-    clarityScore: Number(payload.clarity_score || 0),
+    practicalityScore: coerceScore(payload.practicality_score),
+    actionabilityScore: coerceScore(payload.actionability_score),
+    noveltyScore: coerceScore(payload.novelty_score),
+    clarityScore: coerceScore(payload.clarity_score),
     oneLineSummary: String(payload.one_line_summary || ""),
     reasonShort: String(payload.reason_short || ""),
-    companyImpact: Number(payload.company_impact || 0),
-    teamImpact: Number(payload.team_impact || 0),
-    personalImpact: Number(payload.personal_impact || 0),
-    executionClarity: Number(payload.execution_clarity || 0),
+    companyImpact: coerceScore(payload.company_impact),
+    teamImpact: coerceScore(payload.team_impact),
+    personalImpact: coerceScore(payload.personal_impact),
+    executionClarity: coerceScore(payload.execution_clarity),
     actionHint: String(payload.action_hint || ""),
     bestForRoles,
     evidenceSignals,

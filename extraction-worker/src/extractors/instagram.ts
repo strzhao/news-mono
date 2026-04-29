@@ -15,8 +15,8 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { extname, join } from "node:path";
-import { launchBackgroundBrowser } from "../browser-runtime.js";
 import { uploadBufferToBlob, uploadFileToBlob } from "../upload.js";
+import { acquireBrowser, releasePage } from "./browser.js";
 import { ytdlpProxyArgs } from "./youtube.js";
 
 interface ExtractedResource {
@@ -223,7 +223,8 @@ async function extractViaPlaywright(
     console.log(`[${taskId}] No Instagram session found. Run 'npm run ig-login' first.`);
   }
 
-  const browser = await launchBackgroundBrowser();
+  const browser = await acquireBrowser();
+  let context: Awaited<ReturnType<typeof browser.newContext>> | null = null;
   try {
     const contextOptions: Record<string, unknown> = {
       userAgent: UA,
@@ -232,7 +233,7 @@ async function extractViaPlaywright(
     if (hasState) {
       contextOptions.storageState = IG_SESSION_FILE;
     }
-    const context = await browser.newContext(contextOptions);
+    context = await browser.newContext(contextOptions);
 
     // Intercept GraphQL responses for structured data
     let capturedMedia: any = null;
@@ -418,7 +419,8 @@ async function extractViaPlaywright(
       mediaItems,
     };
   } finally {
-    await browser.close().catch(() => {});
+    if (context) await context.close().catch(() => {});
+    releasePage();
   }
 }
 

@@ -17,8 +17,8 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { extname, join } from "node:path";
-import { launchBackgroundBrowser } from "../browser-runtime.js";
 import { uploadBufferToBlob, uploadFileToBlob } from "../upload.js";
+import { acquireBrowser, releasePage } from "./browser.js";
 import { ytdlpProxyArgs } from "./youtube.js";
 
 const XHS_STATE_FILE = join(homedir(), ".xhs-session", "state.json");
@@ -144,7 +144,8 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
     );
   }
 
-  const browser = await launchBackgroundBrowser();
+  const browser = await acquireBrowser();
+  let context: Awaited<ReturnType<typeof browser.newContext>> | null = null;
   try {
     const contextOptions: Record<string, unknown> = {
       userAgent:
@@ -154,7 +155,7 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
     if (hasState) {
       contextOptions.storageState = XHS_STATE_FILE;
     }
-    const context = await browser.newContext(contextOptions);
+    context = await browser.newContext(contextOptions);
     const page = await context.newPage();
 
     // Anti-detection: hide webdriver flag
@@ -346,7 +347,8 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
     }
     return noteData as NoteData;
   } finally {
-    await browser.close().catch(() => {});
+    if (context) await context.close().catch(() => {});
+    releasePage();
   }
 }
 

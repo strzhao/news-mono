@@ -45,7 +45,6 @@ export interface BrowserExtractResult {
 // ---------------------------------------------------------------------------
 
 const MAX_CONCURRENT_PAGES = 3;
-const MAX_REQUESTS_BEFORE_RESTART = 100;
 const HEALTH_CHECK_INTERVAL_MS = 60_000;
 
 let browserInstance: Browser | null = null;
@@ -161,7 +160,7 @@ async function closeBrowserInstance(reason: string): Promise<void> {
   }
 }
 
-async function acquireBrowser(): Promise<Browser> {
+export async function acquireBrowser(): Promise<Browser> {
   if (browserInstance) {
     if (browserInstance.isConnected()) {
       activePages++;
@@ -229,14 +228,9 @@ function detectLaunchedBrowserPid(existingChildPids: Set<number>): number | null
   return launchedPid ?? detectBrowserPid();
 }
 
-function releasePage(): void {
+export function releasePage(): void {
   activePages = Math.max(0, activePages - 1);
   totalRequestsServed++;
-  if (totalRequestsServed >= MAX_REQUESTS_BEFORE_RESTART && activePages === 0) {
-    logPoolEvent("graceful-restart-scheduled", { total_requests_served: totalRequestsServed });
-    totalRequestsServed = 0;
-    void closeBrowserInstance("graceful-restart-after-max-requests");
-  }
 }
 
 /** Start health-check timer — verifies browser is connected every 60 s. */

@@ -223,15 +223,15 @@ describe("Test 5: XHS extractor has browser.close() inside a finally block", () 
     //   try {
     //     ...
     //   } finally {
-    //     ...browser.close()...
+    //     ...context.close()... + releasePage()
     //   }
     //
-    // We use a multiline regex to verify browser.close() appears inside a
-    // finally block rather than only inside a catch block.
-    const finallyWithClose = /finally\s*\{[^}]*browser\.close\(\)/s.test(source);
+    // XHS now uses the shared browser pool (acquireBrowser) and only closes
+    // the context in finally, not the browser itself.
+    const finallyWithClose = /finally\s*\{[^}]*context\.close\(\)/s.test(source);
     expect(
       finallyWithClose,
-      "xiaohongshu.ts: browser.close() must appear inside a finally block to guarantee cleanup",
+      "xiaohongshu.ts: context.close() must appear inside a finally block to guarantee cleanup",
     ).toBe(true);
   });
 
@@ -259,10 +259,10 @@ describe("Test 6: Instagram extractor has browser.close() inside a finally block
   it("instagram.ts closes the browser in a finally block (static analysis)", () => {
     const source = readFileSync(join(EXTRACTION_WORKER_SRC, "extractors", "instagram.ts"), "utf-8");
 
-    const finallyWithClose = /finally\s*\{[^}]*browser\.close\(\)/s.test(source);
+    const finallyWithClose = /finally\s*\{[^}]*context\.close\(\)/s.test(source);
     expect(
       finallyWithClose,
-      "instagram.ts: browser.close() must appear inside a finally block to guarantee cleanup",
+      "instagram.ts: context.close() must appear inside a finally block to guarantee cleanup",
     ).toBe(true);
   });
 

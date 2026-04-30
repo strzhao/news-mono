@@ -86,12 +86,9 @@ function parseTagGroups(value: unknown): Record<string, string[]> {
   return result;
 }
 
-function coerceScore(value: unknown): number {
-  let score = Number(value);
-  if (!Number.isFinite(score)) score = 0;
-  if (score >= 0 && score <= 10) {
-    score *= 10;
-  }
+function clampScore(value: unknown): number {
+  const score = Number(value);
+  if (!Number.isFinite(score)) return 0;
   return Math.max(0, Math.min(100, score));
 }
 
@@ -151,7 +148,7 @@ function parseAssessment(cacheKey: string, payloadText: string): ArticleAssessme
     }
   }
 
-  const qualityScore = coerceScore(payload.quality_score);
+  const qualityScore = clampScore(payload.quality_score);
   let confidence = coerceConfidence(payload.confidence);
   if (!Object.keys(tagGroups).length) {
     confidence = Math.min(confidence, 0.85);
@@ -167,16 +164,16 @@ function parseAssessment(cacheKey: string, payloadText: string): ArticleAssessme
     articleId: String(payload.article_id || ""),
     worth: String(payload.worth || "跳过") as ArticleAssessment["worth"],
     qualityScore,
-    practicalityScore: coerceScore(payload.practicality_score),
-    actionabilityScore: coerceScore(payload.actionability_score),
-    noveltyScore: coerceScore(payload.novelty_score),
-    clarityScore: coerceScore(payload.clarity_score),
+    practicalityScore: clampScore(payload.practicality_score),
+    actionabilityScore: clampScore(payload.actionability_score),
+    noveltyScore: clampScore(payload.novelty_score),
+    clarityScore: clampScore(payload.clarity_score),
     oneLineSummary: String(payload.one_line_summary || ""),
     reasonShort: String(payload.reason_short || ""),
-    companyImpact: coerceScore(payload.company_impact),
-    teamImpact: coerceScore(payload.team_impact),
-    personalImpact: coerceScore(payload.personal_impact),
-    executionClarity: coerceScore(payload.execution_clarity),
+    companyImpact: clampScore(payload.company_impact),
+    teamImpact: clampScore(payload.team_impact),
+    personalImpact: clampScore(payload.personal_impact),
+    executionClarity: clampScore(payload.execution_clarity),
     actionHint: String(payload.action_hint || ""),
     bestForRoles,
     evidenceSignals,

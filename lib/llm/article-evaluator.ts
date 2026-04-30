@@ -10,7 +10,7 @@ import {
 import { type DeepSeekClient, DeepSeekError } from "@/lib/llm/deepseek-client";
 
 const VALID_WORTH = new Set([WORTH_MUST_READ, WORTH_WORTH_READING, WORTH_SKIP]);
-const ASSESSMENT_SCHEMA_VERSION = "assessment_r3";
+const ASSESSMENT_SCHEMA_VERSION = "assessment_r4";
 
 export interface ArticleEvalFailureSample {
   article_id: string;
@@ -40,11 +40,12 @@ export interface ArticleEvalBatchResult {
   telemetry: ArticleEvalTelemetry;
 }
 
-function coerceScore(value: unknown): number {
+export function coerceScore(value: unknown): number {
   let score = Number(value);
-  if (!Number.isFinite(score)) score = 0;
-  if (score >= 0 && score <= 10) {
-    score *= 10;
+  if (!Number.isFinite(score)) return 0;
+  // Only handle 0-1 normalized scale (e.g., 0.85 → 85, 1.0 → 100)
+  if (score > 0 && score <= 1) {
+    score = score * 100;
   }
   return Math.max(0, Math.min(100, score));
 }
@@ -463,7 +464,8 @@ export class ArticleEvaluator {
       "除非内容明显不属于 AI 主题或信息严重不足，否则不要把 primary_type 设为 other。" +
       "若 primary_type 为 other，请在 secondary_types 给出 1-2 个更具体类型（若存在）。" +
       "tag_groups 为对象，键建议使用 topic/tech/role/scenario/impact/evidence/type/source，值是 snake_case 标签数组；至少输出一个非空标签组。" +
-      "confidence 含义是“你对评分与类型判断的证据充分度”，只有证据非常充分且结论稳定时才可 >0.9。";
+      "confidence 含义是”你对评分与类型判断的证据充分度”，只有证据非常充分且结论稳定时才可 >0.9。" +
+      "所有数值评分（reading_roi_score、company_impact、team_impact、personal_impact、execution_clarity、novelty、clarity_score）必须是 0-100 的整数。0=无价值，100=极高价值。不要使用 0-10 尺度。";
 
     const payload = {
       article_id: article.id,
@@ -553,7 +555,14 @@ export class ArticleEvaluator {
     }
     secondaryTypes = secondaryTypes.slice(0, 2);
 
-    const qualityScore = pickScore(row, ["reading_roi_score", "quality_score"], 0);
+    let qualityScore = pickScore(row, ["reading_roi_score", "quality_score"], 0);
+    // worth ↔ score cross-validation
+    if (worth === "跳过" && qualityScore > 40) {
+      qualityScore = 40;
+    }
+    if (worth === "必读" && qualityScore < 60) {
+      qualityScore = 60;
+    }
     const companyImpact = pickScore(row, ["company_impact"], qualityScore);
     const teamImpact = pickScore(row, ["team_impact"], qualityScore);
     const personalImpact = pickScore(row, ["personal_impact"], qualityScore);

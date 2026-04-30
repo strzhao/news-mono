@@ -1,6 +1,6 @@
 ---
 active: true
-phase: "merge"
+phase: "done"
 gate: ""
 iteration: 2
 max_iterations: 30
@@ -11,7 +11,7 @@ plan_mode: ""
 brief_file: ""
 next_task: ""
 auto_approve: false
-knowledge_extracted: ""
+knowledge_extracted: "skipped"
 task_dir: "/Users/stringzhao/workspace/agi/live/article-db/.autopilot/requirements/20260428-昨天和今天的-@..-ai-news"
 session_id: 5ee95c7c-8a55-4a47-ae3b-445cf8d9e8ca
 started_at: "2026-04-28T09:53:19Z"

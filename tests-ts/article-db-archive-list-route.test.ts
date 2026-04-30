@@ -70,6 +70,7 @@ describe("article-db archive-list route", () => {
           feedback_total_count: 0,
           feedback_last: "",
           feedback_last_at: "",
+          has_content: false,
         },
       ],
     });

@@ -1093,3 +1093,37 @@
   font-size: 13px;
   color: #4f5868;
 }
+
+/* ── Archive button ──────────────────────────────────── */
+
+.archiveBtn {
+  all: unset;
+  cursor: pointer;
+  font-size: 12px;
+  color: #173775;
+  border: 1px solid #c0cfe8;
+  border-radius: 6px;
+  padding: 2px 10px;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.archiveBtn:hover {
+  background: #f2f6ff;
+}
+
+.archiveBtnDisabled {
+  font-size: 12px;
+  color: #9ba3b2;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.drawerMeta {
+  font-size: 12px;
+  color: #4f5868;
+  padding: 8px 20px;
+  background: #fbfdff;
+  border-bottom: 1px solid #e8ecf4;
+  flex-shrink: 0;
+}

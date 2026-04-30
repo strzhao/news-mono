@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ArchivedArticleRow, PrimaryTypeStat, SourceOption } from "@/lib/article-db/types";
 import type { ArticleContentData } from "./ArticleDrawer";
-import { ArticleDrawerProvider, ArticleTitle } from "./ArticleDrawer";
+import { ArchiveButton, ArticleDrawerProvider, ArticleTitle } from "./ArticleDrawer";
 import styles from "./page.module.css";
 import { buildPageHref, channelLabel, compactJson, formatDateTime, worthClass } from "./shared";
 
@@ -242,6 +242,12 @@ export default function ArticlesTab({
                         {item.feedback_good_count}/{item.feedback_bad_count}
                       </span>
                     )}
+                    <ArchiveButton
+                      articleId={item.article_id}
+                      hasContent={item.has_content}
+                      label="查看存档"
+                      disabledLabel="无存档"
+                    />
                   </div>
 
                   {/* Collapsible details */}

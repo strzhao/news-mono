@@ -476,6 +476,7 @@ function rowToArchivedArticle(
     feedback_total_count: Number(row.feedback_total_count || 0),
     feedback_last: String(row.feedback_last || ""),
     feedback_last_at: toIso(row.feedback_last_at),
+    has_content: Boolean(row.has_content),
   };
 }
 
@@ -2530,7 +2531,8 @@ export async function listArchivedArticles(params: {
         aa.secondary_types,
         aa.tag_groups,
         h.selected_at,
-        (h.article_id IS NOT NULL) AS is_selected
+        (h.article_id IS NOT NULL) AS is_selected,
+        (a.content_full_updated_at IS NOT NULL) AS has_content
       FROM daily_analyzed_articles d
       INNER JOIN articles a ON a.id = d.article_id
       INNER JOIN sources s ON s.id = a.source_id

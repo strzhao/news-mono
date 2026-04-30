@@ -66,6 +66,8 @@ async function fetchArticleContent(articleId: string): Promise<ArticleContentDat
     title: detail.title,
     content_full_html: detail.content_full_html,
     content_full_text: detail.content_full_text,
+    content_full_updated_at: detail.content_full_updated_at,
+    content_full_error: detail.content_full_error,
     content_text: detail.content_text,
     summary_raw: detail.summary_raw,
     lead_paragraph: detail.lead_paragraph,

@@ -1,8 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SourceConfig } from "@/lib/domain/models";
 import { fetchArticles } from "@/lib/fetch/rss-fetcher";
-
-const originalFetch = globalThis.fetch;
 
 function source(id: string, url: string): SourceConfig {
   return {
@@ -16,7 +14,7 @@ function source(id: string, url: string): SourceConfig {
 }
 
 afterEach(() => {
-  globalThis.fetch = originalFetch;
+  vi.unstubAllGlobals();
   delete process.env.WECHAT_SOGOU_MAX_AGE_DAYS;
 });
 
@@ -35,7 +33,7 @@ describe("rss fetcher", () => {
   </channel>
 </rss>`;
 
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input instanceof URL ? input.toString() : input);
       if (url.includes("slow.example.com")) {
         return await new Promise<Response>((_resolve, reject) => {
@@ -55,7 +53,7 @@ describe("rss fetcher", () => {
           "content-type": "application/rss+xml",
         },
       });
-    }) as typeof fetch;
+    });
 
     const startedAt = Date.now();
     const result = await fetchArticles(
@@ -117,7 +115,7 @@ describe("rss fetcher", () => {
   }, 100);
 </script>`.trim();
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = String(input instanceof URL ? input.toString() : input);
       if (url.includes("weixin.sogou.com/weixin?type=2&query=Rockhazix")) {
         return {
@@ -142,7 +140,7 @@ describe("rss fetcher", () => {
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
-    }) as typeof fetch;
+    });
 
     const result = await fetchArticles(
       [
@@ -200,7 +198,7 @@ describe("rss fetcher", () => {
   </channel>
 </rss>`;
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = String(input instanceof URL ? input.toString() : input);
       if (url.includes("weixin.sogou.com/weixin?type=2&query=%E9%87%8F%E5%AD%90%E4%BD%8D")) {
         return {
@@ -223,7 +221,7 @@ describe("rss fetcher", () => {
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
-    }) as typeof fetch;
+    });
 
     const result = await fetchArticles(
       [
@@ -292,7 +290,7 @@ describe("rss fetcher", () => {
   }, 100);
 </script>`.trim();
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = String(input instanceof URL ? input.toString() : input);
       if (url.includes("weixin.sogou.com/weixin?type=2&query=Rockhazix")) {
         return {
@@ -321,7 +319,7 @@ describe("rss fetcher", () => {
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
-    }) as typeof fetch;
+    });
 
     const result = await fetchArticles(
       [
@@ -389,7 +387,7 @@ describe("rss fetcher", () => {
   url += 'om/s?src=11&signature=new';
 </script>`.trim();
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = String(input instanceof URL ? input.toString() : input);
       if (url.includes("weixin.sogou.com/weixin?type=2&query=QbitAI")) {
         return {
@@ -425,7 +423,7 @@ describe("rss fetcher", () => {
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
-    }) as typeof fetch;
+    });
 
     const result = await fetchArticles(
       [
@@ -456,6 +454,10 @@ describe("rss fetcher", () => {
   it("falls back to RSS when matched WeChat articles are stale", async () => {
     process.env.WECHAT_SOGOU_MAX_AGE_DAYS = "7";
 
+    // Use a date within the 7-day window so the RSS fallback passes freshness filter
+    const recentDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000); // 2 days ago
+    const recentPubDate = recentDate.toUTCString();
+
     const staleSogouHtml = `
 <!doctype html>
 <html>
@@ -482,12 +484,12 @@ describe("rss fetcher", () => {
       <title>新智元 RSS 兜底文章</title>
       <link>https://mp.weixin.qq.com/s?__fallback=stale</link>
       <description>来自 WeWe 的兜底内容。</description>
-      <pubDate>Sun, 06 Apr 2026 16:00:00 GMT</pubDate>
+      <pubDate>${recentPubDate}</pubDate>
     </item>
   </channel>
 </rss>`;
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = String(input instanceof URL ? input.toString() : input);
       if (url.includes("weixin.sogou.com/weixin?type=2&query=%E6%96%B0%E6%99%BA%E5%85%83")) {
         return {
@@ -510,7 +512,7 @@ describe("rss fetcher", () => {
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
-    }) as typeof fetch;
+    });
 
     const result = await fetchArticles(
       [
@@ -548,13 +550,16 @@ describe("rss fetcher", () => {
   </channel>
 </rss>`;
 
-    globalThis.fetch = (async () =>
-      new Response(rss, {
-        status: 200,
-        headers: {
-          "content-type": "application/rss+xml",
-        },
-      })) as typeof fetch;
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(rss, {
+          status: 200,
+          headers: {
+            "content-type": "application/rss+xml",
+          },
+        }),
+    );
 
     const result = await fetchArticles(
       [

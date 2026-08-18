@@ -1,0 +1,137 @@
+<h2>播客与主编稿融合方案</h2>
+<p class="subtitle">播客播放器嵌入现有 editorial 区域，共享标题和主编信息</p>
+
+<div class="cards">
+  <div class="card" data-choice="inline-player" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <!-- Faithful reproduction of the existing editorial section with podcast integrated -->
+      <div style="background:oklch(0.975 0.01 95);border-radius:12px;padding:28px 24px;color:oklch(0.155 0.006 95);font-family:'SF Pro Text','PingFang SC',system-ui,sans-serif;border-bottom:2px solid oklch(0.155 0.006 95)">
+
+        <!-- Date -->
+        <div style="font-size:14px;color:oklch(0.5 0.005 95);margin-bottom:20px;letter-spacing:0.02em">2026年4月11日 星期六</div>
+
+        <!-- Byline: extended with guests -->
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="background:oklch(0.488 0.088 158);color:#fff;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600">晨报</span>
+          <span style="font-size:13px;color:oklch(0.5 0.005 95)">主编</span>
+          <span style="font-size:15px;font-weight:600">雷鸣</span>
+          <span style="font-size:13px;color:oklch(0.5 0.005 95);font-style:italic">AI 商业辣评</span>
+          <!-- NEW: guests -->
+          <span style="font-size:13px;color:oklch(0.5 0.005 95);margin-left:4px">·</span>
+          <span style="font-size:13px;color:oklch(0.5 0.005 95)">圆桌</span>
+          <span style="font-size:14px;font-weight:500">苏诺</span>
+          <span style="font-size:14px;font-weight:500">林默</span>
+        </div>
+
+        <!-- Headline (shared between editorial and podcast) -->
+        <h1 style="font-size:30px;font-weight:800;line-height:1.2;margin:0 0 16px 0;font-family:'SF Pro Display','PingFang SC',system-ui,sans-serif;letter-spacing:-0.01em">DeepSeek V4 开源：技术很香，但商业逻辑存疑</h1>
+
+        <!-- Editorial body -->
+        <div style="margin-bottom:20px">
+          <p style="font-size:16px;line-height:1.75;color:oklch(0.35 0.005 95);margin:0 0 12px 0">今日最大的新闻无疑是 DeepSeek 宣布开源 V4 全系列模型。从技术报告看，MoE 架构的改进确实扎实——苏诺稍后会展开。但说白了，开源的"诚意"和开源的"策略"是两回事。</p>
+          <p style="font-size:16px;line-height:1.75;color:oklch(0.35 0.005 95);margin:0 0 12px 0">另一条暗线是 Google Agent SDK 的发布。这和 Anthropic 的 Managed Agents 形成了有趣的路线之争——一个走开放生态，一个走托管闭环。林默对两者的底层架构差异有独到见解。</p>
+        </div>
+
+        <!-- NEW: Podcast player (integrated) -->
+        <div style="background:oklch(0.155 0.006 95 / 0.04);border:1px solid oklch(0.155 0.006 95 / 0.1);border-radius:10px;padding:14px 16px;margin-bottom:18px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:38px;height:38px;border-radius:50%;background:oklch(0.488 0.088 158);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">
+              <span style="color:#fff;font-size:14px;margin-left:2px">▶</span>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span style="font-size:13px;font-weight:600;color:oklch(0.155 0.006 95)">收听圆桌讨论</span>
+                <span style="font-size:12px;color:oklch(0.5 0.005 95)">18:32</span>
+              </div>
+              <div style="height:3px;background:oklch(0.155 0.006 95 / 0.1);border-radius:2px">
+                <div style="width:0%;height:100%;background:oklch(0.488 0.088 158);border-radius:2px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tags (unchanged) -->
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span style="font-size:13px;color:oklch(0.488 0.088 158)">#DeepSeek</span>
+          <span style="font-size:13px;color:oklch(0.488 0.088 158)">#开源</span>
+          <span style="font-size:13px;color:oklch(0.488 0.088 158)">#Agent SDK</span>
+          <span style="font-size:13px;color:oklch(0.488 0.088 158)">#大模型</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 内嵌播放条</h3>
+      <p>播放器嵌在正文与标签之间，byline 扩展显示圆桌嘉宾。标题共用，一个区域同时承载文字稿和播客。最小改动，风格统一。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="tab-switch" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:oklch(0.975 0.01 95);border-radius:12px;padding:28px 24px;color:oklch(0.155 0.006 95);font-family:'SF Pro Text','PingFang SC',system-ui,sans-serif;border-bottom:2px solid oklch(0.155 0.006 95)">
+
+        <!-- Date -->
+        <div style="font-size:14px;color:oklch(0.5 0.005 95);margin-bottom:20px;letter-spacing:0.02em">2026年4月11日 星期六</div>
+
+        <!-- Tab switcher -->
+        <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid oklch(0.155 0.006 95 / 0.12)">
+          <div style="font-size:14px;padding:8px 16px;color:oklch(0.5 0.005 95);cursor:pointer">主编稿</div>
+          <div style="font-size:14px;padding:8px 16px;font-weight:600;color:oklch(0.155 0.006 95);border-bottom:2px solid oklch(0.488 0.088 158);margin-bottom:-1px;cursor:pointer">圆桌播客</div>
+        </div>
+
+        <!-- Podcast view (active tab) -->
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="font-size:13px;color:oklch(0.5 0.005 95)">主持</span>
+          <span style="font-size:15px;font-weight:600">雷鸣</span>
+          <span style="font-size:13px;color:oklch(0.5 0.005 95);margin-left:4px">×</span>
+          <span style="font-size:15px;font-weight:600">苏诺</span>
+          <span style="font-size:13px;color:oklch(0.5 0.005 95)">×</span>
+          <span style="font-size:15px;font-weight:600">林默</span>
+        </div>
+
+        <h1 style="font-size:30px;font-weight:800;line-height:1.2;margin:0 0 20px 0;font-family:'SF Pro Display','PingFang SC',system-ui,sans-serif">DeepSeek V4 开源：技术很香，但商业逻辑存疑</h1>
+
+        <!-- Large player -->
+        <div style="margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+            <div style="width:48px;height:48px;border-radius:50%;background:oklch(0.488 0.088 158);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">
+              <span style="color:#fff;font-size:18px;margin-left:3px">▶</span>
+            </div>
+            <div style="flex:1">
+              <div style="height:4px;background:oklch(0.155 0.006 95 / 0.1);border-radius:2px;margin-bottom:6px">
+                <div style="width:0%;height:100%;background:oklch(0.488 0.088 158);border-radius:2px"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <span style="font-size:12px;color:oklch(0.5 0.005 95)">0:00</span>
+                <span style="font-size:12px;color:oklch(0.5 0.005 95)">18:32</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Topic chapters -->
+        <div style="font-size:13px;color:oklch(0.35 0.005 95)">
+          <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid oklch(0.155 0.006 95 / 0.06);cursor:pointer">
+            <span style="color:oklch(0.488 0.088 158);font-weight:600;flex-shrink:0">00:00</span>
+            <span>开场：今天有个事儿不吐不快</span>
+          </div>
+          <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid oklch(0.155 0.006 95 / 0.06);cursor:pointer">
+            <span style="color:oklch(0.488 0.088 158);font-weight:600;flex-shrink:0">01:25</span>
+            <span>DeepSeek V4：MoE 架构突破还是换皮？</span>
+          </div>
+          <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid oklch(0.155 0.006 95 / 0.06);cursor:pointer">
+            <span style="color:oklch(0.488 0.088 158);font-weight:600;flex-shrink:0">08:40</span>
+            <span>Agent SDK 路线之争：开放 vs 托管</span>
+          </div>
+          <div style="display:flex;gap:8px;padding:8px 0;cursor:pointer">
+            <span style="color:oklch(0.488 0.088 158);font-weight:600;flex-shrink:0">15:10</span>
+            <span>AI 编程工具的安全红线在哪？</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Tab 切换模式</h3>
+      <p>"主编稿 | 圆桌播客" 两个 Tab 共享头部区域。播客 Tab 有更大的播放器和话题章节列表，可跳转到感兴趣的段落。信息密度更高，但改动较大。</p>
+    </div>
+  </div>
+</div>

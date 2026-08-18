@@ -2,7 +2,7 @@ import { Pool } from "pg";
 
 declare global {
   // eslint-disable-next-line no-var
-  var __aiNewsPgPool: Pool | undefined;
+  var __articleDbPgPool: Pool | undefined;
 }
 
 function buildPool(): Pool {
@@ -22,10 +22,10 @@ function buildPool(): Pool {
 }
 
 export function getPgPool(): Pool {
-  if (!global.__aiNewsPgPool) {
-    global.__aiNewsPgPool = buildPool();
+  if (!global.__articleDbPgPool) {
+    global.__articleDbPgPool = buildPool();
   }
-  return global.__aiNewsPgPool;
+  return global.__articleDbPgPool;
 }
 
 export function getPgPoolOrNull(): Pool | null {

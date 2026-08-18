@@ -8,7 +8,10 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:bootstrap": "node scripts/migrate-independent-neon.mjs bootstrap",
+    "db:clone": "node scripts/migrate-independent-neon.mjs copy",
+    "db:verify": "node scripts/migrate-independent-neon.mjs verify"
   },
   "dependencies": {
     "@types/pg": "^8.18.0",

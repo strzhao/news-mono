@@ -58,6 +58,49 @@ npm run typecheck
 npm test
 ```
 
+## Independent Neon Migration
+
+`article-db` 现在提供了标准化迁库脚本，用于把共享库中的文章分析数据迁到独立 Neon：
+
+```bash
+# 1) 先在目标库建 schema
+TARGET_DATABASE_URL='postgresql://...' npm run db:bootstrap
+
+# 2) 从共享库复制 article-db 全部表到新库
+SOURCE_DATABASE_URL='postgresql://shared...' \
+TARGET_DATABASE_URL='postgresql://new...' \
+npm run db:clone -- --truncate-target
+
+# 3) 对新旧库做逐表校验
+SOURCE_DATABASE_URL='postgresql://shared...' \
+TARGET_DATABASE_URL='postgresql://new...' \
+npm run db:verify
+```
+
+脚本会迁移并校验以下核心表：
+
+- `sources`
+- `articles`
+- `article_related_images`
+- `article_analysis`
+- `daily_high_quality_articles`
+- `daily_analyzed_articles`
+- `ingestion_runs`
+- `tag_registry`
+- `tag_governance_*`
+- `article_quality_feedback`
+- `flomo_archive_push_batches`
+- `flomo_archive_article_consumption`
+- `article_summaries`
+
+建议切换顺序：
+
+1. 暂停 `article-db` ingestion cron 和 `ai-news` 的 flomo / web-push cron
+2. 执行 `db:bootstrap`、`db:clone`、`db:verify`
+3. 把 `article-db` 项目的 `DATABASE_URL` 切到新库并重新部署
+4. 保持 `ai-news` 的 `ARTICLE_DB_BASE_URL` 指向 `article-db` 服务；删除 `ai-news` 项目中的旧 `DATABASE_URL/POSTGRES_URL*`
+5. 验证消费层接口后恢复 cron
+
 ## Deployment
 
 `vercel.json` 仅保留 ingestion cron：

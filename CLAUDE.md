@@ -32,7 +32,7 @@ pnpm --filter article-db dev
 ## 边界规则
 
 - **apps 之间不互相 import**；ai-news ↔ article-db 只走 HTTP API 契约，契约变更同一 PR 原子更新两侧
-- `apps/article-db/extraction-worker/` 是 PM2 管的长驻 worker（Playwright/yt-dlp），**不在 pnpm workspace 内、保留自己的 npm lockfile**——它有独立安装/部署生命周期，不要并入根 lockfile。生产实例跑在 VPS（article-db 的 `BROWSER_EXTRACT_URL=http://VPS_HOST_INTERNAL:18081`），本机目录只是开发副本
+- `apps/article-db/extraction-worker/` 是 PM2 管的长驻 worker（Playwright/yt-dlp），**不在 pnpm workspace 内、保留自己的 npm lockfile**——它有独立安装/部署生命周期，不要并入根 lockfile。生产实例跑在私有 VPS（article-db 的 `BROWSER_EXTRACT_URL` 指向它），本机目录只是开发副本
 - `@stringzhao/auth-sdk` 走 npm 发包（base-account 仓），**不进本仓**
 - 工具链分区：ai-news 用 **biome**（`pnpm --filter ai-news lint`，biome.json 在其目录内自洽）；article-db / cli 只 tsc。不要在根上放全仓 glob formatter 去重排另一侧的代码
 - cli 不硬编码业务命令；对 ai-news API 的契约变更与 cli 适配同一 PR 完成

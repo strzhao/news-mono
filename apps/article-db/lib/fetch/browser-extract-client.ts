@@ -30,7 +30,7 @@ interface BrowserServiceResponse {
 /**
  * Fetch article content via the browser extraction service.
  *
- * Requires `BROWSER_EXTRACT_URL` env var to be set (e.g. `http://VPS_HOST_INTERNAL:18081`).
+ * Requires `BROWSER_EXTRACT_URL` env var to be set (e.g. `https://browser-extract.internal.example`).
  * Optionally uses `BROWSER_EXTRACT_AUTH_TOKEN` for bearer auth.
  *
  * @throws if the service is unavailable or returns an error

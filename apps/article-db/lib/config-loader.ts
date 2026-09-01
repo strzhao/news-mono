@@ -20,6 +20,21 @@ function joinBaseAndRoute(baseUrl: string, route: string): string {
   return `${base}${clean}`;
 }
 
+function resolveUrlTemplate(rawUrl: string): string | null {
+  if (!rawUrl.includes("${")) {
+    return rawUrl;
+  }
+  let missingVar: string | null = null;
+  const resolved = rawUrl.replace(/\$\{([A-Z0-9_]+)\}/g, (_match, varName: string) => {
+    const value = String(process.env[varName] || "").trim();
+    if (!value && !missingVar) {
+      missingVar = varName;
+    }
+    return value;
+  });
+  return missingVar ? null : resolved;
+}
+
 function normalizeSourceUrl(rawUrl: string): string {
   const url = rawUrl.trim();
   try {
@@ -72,6 +87,12 @@ export function loadSources(sourcePath?: string): SourceConfig[] {
     if (!url) {
       continue;
     }
+
+    const resolvedUrl = resolveUrlTemplate(url);
+    if (resolvedUrl === null) {
+      continue;
+    }
+    url = resolvedUrl;
 
     const normalizedUrl = normalizeSourceUrl(url);
     if (seenUrls.has(normalizedUrl)) {

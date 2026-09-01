@@ -263,9 +263,10 @@ sources:
 
   # 微信公众号
   # 统一主链路：搜狗微信文章搜索；兜底：已配置的 WeWe RSS feed。
+  # WeWe RSS 为私有实例，host 由环境变量 WEEWE_RSS_BASE_URL 提供，未配置时以下条目自动跳过。
   - id: wechat_cyberchanxin
     name: 赛博禅心（微信）
-    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3934419561.atom
+    url: ${WEEWE_RSS_BASE_URL}/feeds/MP_WXS_3934419561.atom
     source_type: wechat
     source_weight: 0.88
     fetch_method: wechat_sogou
@@ -273,7 +274,7 @@ sources:
     wechat_sogou_query: 赛博禅心
   - id: wechat_qbitai
     name: 量子位（微信）
-    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3236757533.atom
+    url: ${WEEWE_RSS_BASE_URL}/feeds/MP_WXS_3236757533.atom
     source_type: wechat
     source_weight: 0.92
     fetch_method: wechat_sogou
@@ -281,7 +282,7 @@ sources:
     wechat_sogou_query: 量子位
   - id: wechat_jiqizhixin
     name: 机器之心（微信）
-    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3073282833.atom
+    url: ${WEEWE_RSS_BASE_URL}/feeds/MP_WXS_3073282833.atom
     source_type: wechat
     source_weight: 0.92
     fetch_method: wechat_sogou
@@ -289,7 +290,7 @@ sources:
     wechat_sogou_query: 机器之心
   - id: wechat_xinzhiyuan
     name: 新智元（微信）
-    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3271041950.atom
+    url: ${WEEWE_RSS_BASE_URL}/feeds/MP_WXS_3271041950.atom
     source_type: wechat
     source_weight: 0.90
     fetch_method: wechat_sogou
@@ -297,7 +298,7 @@ sources:
     wechat_sogou_query: 新智元
   - id: wechat_latepost
     name: 晚点LatePost（微信）
-    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3572959446.atom
+    url: ${WEEWE_RSS_BASE_URL}/feeds/MP_WXS_3572959446.atom
     source_type: wechat
     source_weight: 0.88
     fetch_method: wechat_sogou
@@ -305,7 +306,7 @@ sources:
     wechat_sogou_query: 晚点LatePost
   - id: wechat_aitechtalk
     name: AI科技评论（微信）
-    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3098132220.atom
+    url: ${WEEWE_RSS_BASE_URL}/feeds/MP_WXS_3098132220.atom
     source_type: wechat
     source_weight: 0.88
     fetch_method: wechat_sogou
@@ -313,7 +314,7 @@ sources:
     wechat_sogou_query: AI科技评论
   - id: wechat_kongmou
     name: 孔某人的低维认知（微信）
-    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3940569956.atom
+    url: ${WEEWE_RSS_BASE_URL}/feeds/MP_WXS_3940569956.atom
     source_type: wechat
     source_weight: 0.85
     fetch_method: wechat_sogou
@@ -321,7 +322,7 @@ sources:
     wechat_sogou_query: 孔某人的低维认知
   - id: wechat_gsytech
     name: GSYTech（微信）
-    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3875070218.atom
+    url: ${WEEWE_RSS_BASE_URL}/feeds/MP_WXS_3875070218.atom
     source_type: wechat
     source_weight: 0.85
     fetch_method: wechat_sogou

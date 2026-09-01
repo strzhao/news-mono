@@ -11,7 +11,7 @@ article-db 是一个 AI 驱动的文章智能分析服务，基于 Next.js 15 (A
 - 自定义域名: https://article-db.stringzhao.life
 - Vercel 域名: https://article-db.vercel.app（国内不可达，操作时用自定义域名）
 - Vercel 区域: sin1 (新加坡)
-- Cron: ingestion 每小时执行，blob-cleanup 每日 4:00 UTC
+- Cron: ingestion 每日 02:00（原每小时，2026-09-01 因 Vercel Hobby 限制降级），blob-cleanup 每日 4:00 UTC
 
 ## 常用命令
 

@@ -12,7 +12,7 @@ packages/cli      agent 入口  npm 包 ai-news-cli，读 ai-news 的数据做�
 
 - ai-news 通过 HTTP API 消费 article-db：`lib/integrations/article-db-client.ts`，配置 `ARTICLE_DB_BASE_URL` / `ARTICLE_DB_API_TOKEN`
 - 两 app 均部署 Vercel sin1，`vercel.json`（含 cron）随各自目录走：
-  - article-db cron：`/api/v1/ingestion/run` 每小时、`/api/v1/blob-cleanup` 每日 04:00
+  - article-db cron：`/api/v1/ingestion/run` 每日 02:00、`/api/v1/blob-cleanup` 每日 04:00（原每小时抓取因 Vercel Hobby 套餐限制降级为每日，2026-09-01）
   - ai-news cron：flomo / web-push 定时推送、每日 editorial
 
 ## 命令

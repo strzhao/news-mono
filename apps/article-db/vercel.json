@@ -9,7 +9,7 @@
   "crons": [
     {
       "path": "/api/v1/ingestion/run",
-      "schedule": "0 * * * *"
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/v1/blob-cleanup",

@@ -1,0 +1,21 @@
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+.vercel/
+.DS_Store
+
+# Playwright E2E
+test-results/
+playwright-report/
+
+# AI 协作本地产物
+.claude/dev-loop.local.md
+.claude/autopilot.local.md

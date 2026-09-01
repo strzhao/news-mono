@@ -21,5 +21,5 @@ declare module "web-push" {
   ): Promise<SendResult>;
 
   export default { setVapidDetails, sendNotification };
-  export { setVapidDetails, sendNotification };
+  export { sendNotification, setVapidDetails };
 }

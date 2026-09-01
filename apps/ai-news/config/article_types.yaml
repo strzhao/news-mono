@@ -1,0 +1,18 @@
+types:
+  - market_competition
+  - policy_regulation
+  - funding_finance
+  - strategic_analysis
+  - developer_tooling
+  - model_release
+  - benchmark
+  - engineering_practice
+  - agent_workflow
+  - inference_optimization
+  - cost_optimization
+  - data_engineering
+  - security_compliance
+  - product_release
+  - open_source_project
+  - research_progress
+  - other

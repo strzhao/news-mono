@@ -12,11 +12,11 @@
  * Supports: single image, single video, Reel, Carousel (multi-image/video).
  */
 import { execFile } from "node:child_process";
-import { tmpdir, homedir } from "node:os";
-import { mkdtemp, rm, readdir, stat } from "node:fs/promises";
-import { join, extname } from "node:path";
-import { chromium } from "playwright";
-import { uploadFileToBlob, uploadBufferToBlob } from "../upload.js";
+import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { extname, join } from "node:path";
+import { uploadBufferToBlob, uploadFileToBlob } from "../upload.js";
+import { acquireBrowser, releasePage } from "./browser.js";
 import { ytdlpProxyArgs } from "./youtube.js";
 
 interface ExtractedResource {
@@ -57,7 +57,8 @@ interface PostData {
   mediaItems: MediaItem[];
 }
 
-const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const IG_SESSION_FILE = join(homedir(), ".instagram-session", "state.json");
 
 function computeExpiresAt(ttlHours: number): string {
@@ -66,13 +67,18 @@ function computeExpiresAt(ttlHours: number): string {
 
 function exec(cmd: string, args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { cwd, maxBuffer: 10 * 1024 * 1024, timeout: 120_000 }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(`${cmd} failed: ${error.message}\nstderr: ${stderr}`));
-        return;
-      }
-      resolve(stdout);
-    });
+    execFile(
+      cmd,
+      args,
+      { cwd, maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`${cmd} failed: ${error.message}\nstderr: ${stderr}`));
+          return;
+        }
+        resolve(stdout);
+      },
+    );
   });
 }
 
@@ -190,9 +196,7 @@ function parseMediaNode(node: any): MediaItem[] {
 function parseGraphQLMedia(media: any): PostData | null {
   if (!media) return null;
 
-  const caption = media.edge_media_to_caption?.edges?.[0]?.node?.text
-    || media.caption?.text
-    || "";
+  const caption = media.edge_media_to_caption?.edges?.[0]?.node?.text || media.caption?.text || "";
   const owner = media.owner || media.user || {};
 
   return {
@@ -209,19 +213,18 @@ function parseGraphQLMedia(media: any): PostData | null {
 }
 
 // ===== Tier 1: Playwright with session =====
-async function extractViaPlaywright(url: string, shortcode: string, taskId: string): Promise<PostData | null> {
-  const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || "";
-  const launchOptions: Record<string, unknown> = { headless: true, channel: "chrome", args: ["--disable-blink-features=AutomationControlled"] };
-  if (proxyUrl) {
-    launchOptions.proxy = { server: proxyUrl };
-  }
-
+async function extractViaPlaywright(
+  url: string,
+  shortcode: string,
+  taskId: string,
+): Promise<PostData | null> {
   const hasState = await hasSessionState();
   if (!hasState) {
     console.log(`[${taskId}] No Instagram session found. Run 'npm run ig-login' first.`);
   }
 
-  const browser = await chromium.launch(launchOptions);
+  const browser = await acquireBrowser();
+  let context: Awaited<ReturnType<typeof browser.newContext>> | null = null;
   try {
     const contextOptions: Record<string, unknown> = {
       userAgent: UA,
@@ -230,7 +233,7 @@ async function extractViaPlaywright(url: string, shortcode: string, taskId: stri
     if (hasState) {
       contextOptions.storageState = IG_SESSION_FILE;
     }
-    const context = await browser.newContext(contextOptions);
+    context = await browser.newContext(contextOptions);
 
     // Intercept GraphQL responses for structured data
     let capturedMedia: any = null;
@@ -244,7 +247,11 @@ async function extractViaPlaywright(url: string, shortcode: string, taskId: stri
     page.on("response", async (response) => {
       try {
         const respUrl = response.url();
-        if (respUrl.includes("/api/graphql") || respUrl.includes("/graphql/query") || respUrl.includes("/api/v1/media/")) {
+        if (
+          respUrl.includes("/api/graphql") ||
+          respUrl.includes("/graphql/query") ||
+          respUrl.includes("/api/v1/media/")
+        ) {
           const json = await response.json().catch(() => null);
           if (!json) return;
 
@@ -271,7 +278,10 @@ async function extractViaPlaywright(url: string, shortcode: string, taskId: stri
 
     // Wait for content — Instagram 2026 uses obfuscated class names
     try {
-      await page.waitForSelector("video, img[alt]:not([alt*='profile picture']), [role='presentation']", { timeout: 15_000 });
+      await page.waitForSelector(
+        "video, img[alt]:not([alt*='profile picture']), [role='presentation']",
+        { timeout: 15_000 },
+      );
     } catch {
       await page.waitForLoadState("networkidle").catch(() => {});
     }
@@ -282,7 +292,6 @@ async function extractViaPlaywright(url: string, shortcode: string, taskId: stri
     // If we captured GraphQL/API data, use it
     if (capturedMedia) {
       console.log(`[${taskId}] Playwright: captured API response`);
-      await browser.close();
       return parseGraphQLMedia(capturedMedia);
     }
 
@@ -338,7 +347,10 @@ async function extractViaPlaywright(url: string, shortcode: string, taskId: stri
       }
       // Clean caption: remove author prefix if present
       if (result.author && result.caption.startsWith(result.author)) {
-        result.caption = result.caption.slice(result.author.length).replace(/^[\s·Verified\d\w]*(?:d|h|m|w)\s*/i, "").trim();
+        result.caption = result.caption
+          .slice(result.author.length)
+          .replace(/^[\s·Verified\d\w]*(?:d|h|m|w)\s*/i, "")
+          .trim();
       }
 
       // Images — only content images (large width, not profile pics, not comment avatars)
@@ -350,8 +362,13 @@ async function extractViaPlaywright(url: string, shortcode: string, taskId: stri
         const width = (img as HTMLImageElement).width || 0;
         const height = (img as HTMLImageElement).height || 0;
         // Content images: large, not profile pics, not tiny icons
-        if (src && src.includes("cdninstagram.com") && width > 300 && height > 300
-          && !alt.includes("profile picture") && !alt.includes("'s profile")) {
+        if (
+          src?.includes("cdninstagram.com") &&
+          width > 300 &&
+          height > 300 &&
+          !alt.includes("profile picture") &&
+          !alt.includes("'s profile")
+        ) {
           urls.push(src);
         }
       });
@@ -377,8 +394,6 @@ async function extractViaPlaywright(url: string, shortcode: string, taskId: stri
       return result;
     });
 
-    await browser.close();
-
     // Build PostData from DOM
     const mediaItems: MediaItem[] = [];
     if (domData.videoUrl) {
@@ -403,9 +418,9 @@ async function extractViaPlaywright(url: string, shortcode: string, taskId: stri
       viewCount: 0,
       mediaItems,
     };
-  } catch (err) {
-    await browser.close().catch(() => {});
-    throw err;
+  } finally {
+    if (context) await context.close().catch(() => {});
+    releasePage();
   }
 }
 
@@ -416,7 +431,10 @@ function buildTextContent(data: PostData, metadata: ExtractionMetadata, url: str
     lines.push(metadata.description, "");
   }
   lines.push("---");
-  if (metadata.author) lines.push(`Author: ${data.authorFullName ? `${data.authorFullName} (@${metadata.author})` : `@${metadata.author}`}`);
+  if (metadata.author)
+    lines.push(
+      `Author: ${data.authorFullName ? `${data.authorFullName} (@${metadata.author})` : `@${metadata.author}`}`,
+    );
   if (metadata.published_at) lines.push(`Published: ${metadata.published_at}`);
   if (metadata.tags?.length) lines.push(`Tags: ${metadata.tags.map((t) => `#${t}`).join(" ")}`);
   const parts: string[] = [];
@@ -452,7 +470,9 @@ export async function extractInstagram(
       console.log(`[${taskId}] Launching Playwright for Instagram extraction...`);
       postData = await extractViaPlaywright(url, shortcode, taskId);
       if (postData) {
-        console.log(`[${taskId}] Playwright extracted: caption=${postData.caption.length}ch, media=${postData.mediaItems.length}, author=${postData.author}`);
+        console.log(
+          `[${taskId}] Playwright extracted: caption=${postData.caption.length}ch, media=${postData.mediaItems.length}, author=${postData.author}`,
+        );
       } else {
         console.log(`[${taskId}] Playwright: no post data found`);
       }
@@ -469,7 +489,9 @@ export async function extractInstagram(
         author: postData.author,
         platform_id: postData.shortcode || shortcode,
         tags: extractHashtags(caption),
-        published_at: postData.timestamp ? new Date(postData.timestamp * 1000).toISOString() : undefined,
+        published_at: postData.timestamp
+          ? new Date(postData.timestamp * 1000).toISOString()
+          : undefined,
       };
 
       // Download and upload media
@@ -502,15 +524,23 @@ export async function extractInstagram(
                 const coverBuf = await downloadMedia(item.coverUrl);
                 if (coverBuf && coverBuf.length > 100) {
                   const coverName = `cover_${idx + 1}.jpg`;
-                  const coverUploaded = await uploadBufferToBlob(taskId, coverBuf, coverName, "image");
-                  return [res, {
-                    type: "image",
-                    url: coverUploaded.url,
-                    filename: coverUploaded.filename,
-                    size_bytes: coverUploaded.size_bytes,
-                    mime_type: "image/jpeg",
-                    expires_at: expiresAt,
-                  } as ExtractedResource];
+                  const coverUploaded = await uploadBufferToBlob(
+                    taskId,
+                    coverBuf,
+                    coverName,
+                    "image",
+                  );
+                  return [
+                    res,
+                    {
+                      type: "image",
+                      url: coverUploaded.url,
+                      filename: coverUploaded.filename,
+                      size_bytes: coverUploaded.size_bytes,
+                      mime_type: "image/jpeg",
+                      expires_at: expiresAt,
+                    } as ExtractedResource,
+                  ];
                 }
               }
               return [res];
@@ -518,14 +548,16 @@ export async function extractInstagram(
               const idx = imageIdx++;
               const filename = `image_${idx + 1}${guessExt(item.url, "image")}`;
               const uploaded = await uploadBufferToBlob(taskId, buffer, filename, "image");
-              return [{
-                type: "image",
-                url: uploaded.url,
-                filename: uploaded.filename,
-                size_bytes: uploaded.size_bytes,
-                mime_type: guessMime(item.url, "image"),
-                expires_at: expiresAt,
-              } as ExtractedResource];
+              return [
+                {
+                  type: "image",
+                  url: uploaded.url,
+                  filename: uploaded.filename,
+                  size_bytes: uploaded.size_bytes,
+                  mime_type: guessMime(item.url, "image"),
+                  expires_at: expiresAt,
+                } as ExtractedResource,
+              ];
             }
           }),
         );
@@ -538,7 +570,9 @@ export async function extractInstagram(
         }
       }
 
-      console.log(`[${taskId}] Downloaded ${resources.length} resources from ${postData.mediaItems.length} media items`);
+      console.log(
+        `[${taskId}] Downloaded ${resources.length} resources from ${postData.mediaItems.length} media items`,
+      );
 
       // Upload text content
       try {
@@ -559,20 +593,27 @@ export async function extractInstagram(
     }
 
     // === Tier 2: yt-dlp fallback ===
-    const hasVideo = resources.some((r) => r.type === "video");
+    const _hasVideo = resources.some((r) => r.type === "video");
     const hasAnyMedia = resources.some((r) => r.type === "image" || r.type === "video");
     if (!hasAnyMedia) {
       try {
         console.log(`[${taskId}] Trying yt-dlp fallback...`);
-        await exec("yt-dlp", [
-          "--cookies-from-browser", "chrome",
-          ...ytdlpProxyArgs(url),
-          "-f", "best",
-          "--write-thumbnail",
-          "--no-playlist",
-          "-o", "%(title).80s.%(ext)s",
-          url,
-        ], workDir);
+        await exec(
+          "yt-dlp",
+          [
+            "--cookies-from-browser",
+            "chrome",
+            ...ytdlpProxyArgs(url),
+            "-f",
+            "best",
+            "--write-thumbnail",
+            "--no-playlist",
+            "-o",
+            "%(title).80s.%(ext)s",
+            url,
+          ],
+          workDir,
+        );
 
         const files = await readdir(workDir);
         for (const file of files) {
@@ -604,14 +645,25 @@ export async function extractInstagram(
         // Get metadata from yt-dlp if we don't have it
         if (metadata.title === "Instagram Post") {
           try {
-            const metaJson = await exec("yt-dlp", [
-              "--cookies-from-browser", "chrome",
-              ...ytdlpProxyArgs(url),
-              "--dump-json", "--no-download", url,
-            ], workDir);
+            const metaJson = await exec(
+              "yt-dlp",
+              [
+                "--cookies-from-browser",
+                "chrome",
+                ...ytdlpProxyArgs(url),
+                "--dump-json",
+                "--no-download",
+                url,
+              ],
+              workDir,
+            );
             const meta = JSON.parse(metaJson);
-            metadata.title = String(meta.title || meta.description || "Instagram Post").slice(0, 200);
-            metadata.description = metadata.description || String(meta.description || "").slice(0, 2000);
+            metadata.title = String(meta.title || meta.description || "Instagram Post").slice(
+              0,
+              200,
+            );
+            metadata.description =
+              metadata.description || String(meta.description || "").slice(0, 2000);
             metadata.author = metadata.author || String(meta.uploader || meta.channel || "");
             metadata.platform_id = metadata.platform_id || String(meta.id || "");
           } catch {

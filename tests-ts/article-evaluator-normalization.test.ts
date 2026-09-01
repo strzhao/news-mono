@@ -83,7 +83,7 @@ describe("article evaluator normalization", () => {
       confidence: 0.9,
       primary_type: "open_source_project",
       secondary_types: [],
-      tag_groups: "{\"topic\":[\"multi agent\", \"RAG\"], \"role\": \"AI engineer\"}",
+      tag_groups: '{"topic":["multi agent", "RAG"], "role": "AI engineer"}',
     });
 
     expect(parsed.tagGroups.topic).toEqual(["multi_agent", "rag"]);
@@ -94,13 +94,13 @@ describe("article evaluator normalization", () => {
     const parsed = (evaluator as any).parseAssessment("a3", {
       article_id: "a3",
       worth: "跳过",
-      reading_roi_score: 1,
-      company_impact: 1,
-      team_impact: 1,
-      personal_impact: 1,
-      execution_clarity: 1,
-      novelty: 1,
-      clarity_score: 1,
+      reading_roi_score: 5,
+      company_impact: 5,
+      team_impact: 5,
+      personal_impact: 5,
+      execution_clarity: 5,
+      novelty: 5,
+      clarity_score: 5,
       one_line_summary: "summary",
       reason_short: "reason",
       action_hint: "",

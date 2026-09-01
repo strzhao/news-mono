@@ -16,7 +16,9 @@ describe("article-db legacy import route", () => {
 
   it("returns 401 when no valid auth token", async () => {
     process.env.CRON_SECRET = "secret";
-    const response = await GET(new Request("https://example.com/api/v1/migration/import-legacy?days=30"));
+    const response = await GET(
+      new Request("https://example.com/api/v1/migration/import-legacy?days=30"),
+    );
     expect(response.status).toBe(401);
   });
 

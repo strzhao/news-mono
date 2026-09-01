@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { Article } from "@/lib/domain/models";
+import type { Article } from "@/lib/domain/models";
 
 const TRACKING_PARAM_PREFIXES = ["utm_", "spm", "fbclid", "gclid", "ref"];
 const NON_ALNUM_RE = /[^a-z0-9]+/g;
@@ -25,7 +25,10 @@ function normalizeUrl(raw: string): string {
 }
 
 export function buildTitleKey(title: string): string {
-  const normalized = String(title || "").toLowerCase().replace(NON_ALNUM_RE, " ").trim();
+  const normalized = String(title || "")
+    .toLowerCase()
+    .replace(NON_ALNUM_RE, " ")
+    .trim();
   if (!normalized) {
     return "title:empty";
   }

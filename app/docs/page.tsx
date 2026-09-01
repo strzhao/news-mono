@@ -1,5 +1,5 @@
-import { buildCliManifest } from "@/lib/cli/manifest";
 import type { CliCommandDef } from "@/lib/cli/manifest";
+import { buildCliManifest } from "@/lib/cli/manifest";
 import { CopyButton } from "./CopyButton";
 import styles from "./page.module.css";
 
@@ -26,7 +26,9 @@ function buildPlainTextDocs(manifest: ReturnType<typeof buildCliManifest>): stri
   const lines: string[] = [];
   lines.push("# article-db CLI Documentation");
   lines.push("");
-  lines.push("article-db CLI 是 article-db 系统的命令行工具，用于触发爬取、提取内容、查询文章等操作。");
+  lines.push(
+    "article-db CLI 是 article-db 系统的命令行工具，用于触发爬取、提取内容、查询文章等操作。",
+  );
   lines.push("");
   lines.push("## 安装");
   lines.push("npm install -g @stringzhao/article-db-cli");
@@ -71,7 +73,9 @@ export default function DocsPage() {
   return (
     <div className={styles.page}>
       <nav className={styles.nav}>
-        <a href="/" className={styles.brand}>article-db</a>
+        <a href="/" className={styles.brand}>
+          article-db
+        </a>
         <div className={styles.navLinks}>
           <CopyButton content={plainText} />
         </div>
@@ -101,7 +105,9 @@ export ARTICLE_DB_CLI_API_KEY=your_api_key`}</pre>
 
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>命令参考</h2>
-          <p className={styles.versionTag}>manifest v{manifest.version} · {manifest.commands.length} 个命令</p>
+          <p className={styles.versionTag}>
+            manifest v{manifest.version} · {manifest.commands.length} 个命令
+          </p>
 
           <div className={styles.commandList}>
             {manifest.commands.map((cmd) => (

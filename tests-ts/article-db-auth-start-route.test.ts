@@ -22,7 +22,9 @@ describe("auth start route", () => {
     setAuthEnv();
 
     const response = await GET(
-      new Request("https://article-db.stringzhao.life/auth/start?next=%2Farchive-review%3Fquality_tier%3Dhigh"),
+      new Request(
+        "https://article-db.stringzhao.life/auth/start?next=%2Farchive-review%3Fquality_tier%3Dhigh",
+      ),
     );
 
     expect(response.status).toBe(302);
@@ -31,7 +33,9 @@ describe("auth start route", () => {
 
     const redirectUrl = new URL(location);
     expect(redirectUrl.searchParams.get("service")).toBe("base-account-client");
-    expect(redirectUrl.searchParams.get("return_to")).toBe("https://article-db.stringzhao.life/auth/callback");
+    expect(redirectUrl.searchParams.get("return_to")).toBe(
+      "https://article-db.stringzhao.life/auth/callback",
+    );
     expect(String(redirectUrl.searchParams.get("state") || "").length).toBeGreaterThan(10);
 
     const setCookieHeader = String(response.headers.get("set-cookie") || "");

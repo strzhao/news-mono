@@ -1,15 +1,22 @@
 /**
  * Generic browser-based content extraction via Playwright.
  *
- * Manages a shared Chromium instance (lazy-created, idle-timeout) and exposes
+ * Manages a shared background browser instance (lazy-created, idle-timeout)
+ * and exposes
  * an `extractWithBrowser(url, options)` function that renders a page and
  * extracts title, text, HTML, images, author, and publication date.
  *
  * Used by the HTTP server (`server.ts`) to provide a browser extraction
  * service for Vercel-side callers (pre-crawl, extract-url API).
  */
-import { chromium, type Browser, type Page } from "playwright";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import type { Browser, BrowserContext, Page } from "playwright";
+import {
+  getBackgroundBrowserKind,
+  hasProxyServer,
+  launchBackgroundBrowser,
+} from "../browser-runtime.js";
 import { uploadBufferToBlob } from "../upload.js";
 
 // ---------------------------------------------------------------------------
@@ -34,93 +41,352 @@ export interface BrowserExtractResult {
 }
 
 // ---------------------------------------------------------------------------
-// Browser pool — lazy singleton with idle timeout
+// Browser pool — long-lived singleton with health check + graceful restart
 // ---------------------------------------------------------------------------
 
 const MAX_CONCURRENT_PAGES = 3;
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const HEALTH_CHECK_INTERVAL_MS = 60_000;
 
 let browserInstance: Browser | null = null;
+let browserPid: number | null = null;
+let browserLaunchPromise: Promise<Browser> | null = null;
 let activePages = 0;
-let idleTimer: ReturnType<typeof setTimeout> | null = null;
+let activeRequests = 0;
+let healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+let totalLaunches = 0;
+let totalCloses = 0;
+let totalRequestsServed = 0;
+let requestSequence = 0;
+const backgroundBrowserKind = getBackgroundBrowserKind();
 
-async function acquireBrowser(): Promise<Browser> {
-  if (idleTimer) {
-    clearTimeout(idleTimer);
-    idleTimer = null;
-  }
-
-  if (browserInstance && browserInstance.isConnected()) {
-    activePages++;
-    return browserInstance;
-  }
-
-  const proxyUrl =
-    process.env.https_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.http_proxy ||
-    "";
-
-  const launchOptions: Record<string, unknown> = {
-    headless: true,
-    channel: "chrome",
-    args: ["--disable-blink-features=AutomationControlled"],
-  };
-  if (proxyUrl) {
-    launchOptions.proxy = { server: proxyUrl };
-  }
-
-  browserInstance = await chromium.launch(launchOptions);
-  activePages++;
-  console.log("[browser] Chromium instance launched");
-  return browserInstance;
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.stack || `${error.name}: ${error.message}`;
+  return String(error);
 }
 
-function releasePage(): void {
-  activePages = Math.max(0, activePages - 1);
-  if (activePages === 0) {
-    idleTimer = setTimeout(async () => {
-      if (browserInstance && activePages === 0) {
-        await browserInstance.close().catch(() => {});
-        browserInstance = null;
-        console.log("[browser] Chromium instance closed (idle timeout)");
-      }
-    }, IDLE_TIMEOUT_MS);
+function browserContextCount(): number {
+  return browserInstance?.isConnected() ? browserInstance.contexts().length : 0;
+}
+
+function logPoolEvent(event: string, details: Record<string, unknown> = {}): void {
+  console.log(
+    "[browser]",
+    JSON.stringify({
+      event,
+      browser_pid: browserPid,
+      browser_kind: backgroundBrowserKind,
+      browser_connected: Boolean(browserInstance?.isConnected()),
+      active_pages: activePages,
+      active_requests: activeRequests,
+      active_contexts: browserContextCount(),
+      queued_requests: waiting.length,
+      total_launches: totalLaunches,
+      total_closes: totalCloses,
+      ...details,
+    }),
+  );
+}
+
+function requestHost(url: string): string {
+  try {
+    return new URL(url).host || "(no-host)";
+  } catch {
+    return "(invalid-url)";
   }
+}
+
+function detectBrowserPid(): number | null {
+  const knownPids = listChildBrowserPids();
+  const newestPid = [...knownPids].sort((a, b) => b - a)[0];
+  return newestPid ?? null;
+}
+
+function listChildBrowserPids(): Set<number> {
+  try {
+    const output = execFileSync("ps", ["-axo", "pid=,ppid=,command="], { encoding: "utf8" });
+    const pids = new Set<number>();
+    for (const line of output.split("\n")) {
+      const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
+      if (!match) continue;
+      const pid = Number.parseInt(match[1], 10);
+      const ppid = Number.parseInt(match[2], 10);
+      const command = match[3] || "";
+      if (ppid !== process.pid || !Number.isFinite(pid)) continue;
+      if (
+        !command.includes("chrome-headless-shell") &&
+        !command.includes("/Contents/MacOS/Chromium") &&
+        !command.includes(
+          "/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+        ) &&
+        !command.includes("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+      ) {
+        continue;
+      }
+      pids.add(pid);
+    }
+    return pids;
+  } catch {
+    return new Set();
+  }
+}
+
+async function closeBrowserInstance(reason: string): Promise<void> {
+  if (!browserInstance && browserLaunchPromise) {
+    try {
+      await browserLaunchPromise;
+    } catch {
+      return;
+    }
+  }
+  if (!browserInstance) return;
+
+  const browser = browserInstance;
+  const pid = browserPid;
+  logPoolEvent("browser-close-start", { reason, browser_pid: pid });
+
+  browserInstance = null;
+  browserPid = null;
+  totalCloses++;
+
+  try {
+    await browser.close();
+    logPoolEvent("browser-closed", { reason, browser_pid: pid });
+  } catch (error) {
+    logPoolEvent("browser-close-error", {
+      reason,
+      browser_pid: pid,
+      error: formatError(error),
+    });
+  }
+}
+
+export async function acquireBrowser(): Promise<Browser> {
+  if (browserInstance) {
+    if (browserInstance.isConnected()) {
+      activePages++;
+      return browserInstance;
+    }
+    logPoolEvent("browser-disconnected-before-recreate", {
+      reason: "isConnected=false",
+      browser_pid: browserPid,
+    });
+    browserInstance = null;
+    browserPid = null;
+  }
+
+  if (browserLaunchPromise) {
+    const browser = await browserLaunchPromise;
+    activePages++;
+    return browser;
+  }
+
+  const existingChildPids = listChildBrowserPids();
+  const launchPromise = (async () => {
+    const browser = await launchBackgroundBrowser();
+    browserInstance = browser;
+    browserPid = detectLaunchedBrowserPid(existingChildPids);
+    totalLaunches++;
+    browser.on("disconnected", () => {
+      if (browserInstance === browser) {
+        logPoolEvent("browser-disconnected", {
+          browser_pid: browserPid,
+        });
+        browserInstance = null;
+        browserPid = null;
+      }
+    });
+    logPoolEvent("browser-launched", {
+      browser_pid: browserPid,
+      headless: true,
+      proxy_enabled: hasProxyServer(),
+    });
+    return browser;
+  })();
+
+  browserLaunchPromise = launchPromise;
+  try {
+    const browser = await launchPromise;
+    activePages++;
+    return browser;
+  } catch (error) {
+    logPoolEvent("browser-launch-failed", {
+      error: formatError(error),
+    });
+    throw error;
+  } finally {
+    if (browserLaunchPromise === launchPromise) {
+      browserLaunchPromise = null;
+    }
+  }
+}
+
+function detectLaunchedBrowserPid(existingChildPids: Set<number>): number | null {
+  const currentChildPids = listChildBrowserPids();
+  const launchedPid =
+    [...currentChildPids].filter((pid) => !existingChildPids.has(pid)).sort((a, b) => b - a)[0] ??
+    null;
+  return launchedPid ?? detectBrowserPid();
+}
+
+export function releasePage(): void {
+  activePages = Math.max(0, activePages - 1);
+  totalRequestsServed++;
+}
+
+/** Start health-check timer — verifies browser is connected every 60 s. */
+function startHealthCheck(): void {
+  if (healthCheckTimer) return;
+  healthCheckTimer = setInterval(async () => {
+    if (browserInstance && !browserInstance.isConnected()) {
+      logPoolEvent("health-check-reconnect", { reason: "isConnected=false" });
+      browserInstance = null;
+      browserPid = null;
+    }
+    if (!browserInstance && !browserLaunchPromise && activeRequests === 0) {
+      // Pre-warm a fresh browser for the next request
+      logPoolEvent("health-check-prewarm");
+      try {
+        const existingChildPids = listChildBrowserPids();
+        browserLaunchPromise = (async () => {
+          const browser = await launchBackgroundBrowser();
+          browserInstance = browser;
+          browserPid = detectLaunchedBrowserPid(existingChildPids);
+          totalLaunches++;
+          browser.on("disconnected", () => {
+            if (browserInstance === browser) {
+              logPoolEvent("browser-disconnected", { browser_pid: browserPid });
+              browserInstance = null;
+              browserPid = null;
+            }
+          });
+          logPoolEvent("browser-launched", {
+            browser_pid: browserPid,
+            headless: true,
+            proxy_enabled: hasProxyServer(),
+            trigger: "health-check-prewarm",
+          });
+          return browser;
+        })();
+        await browserLaunchPromise;
+      } catch (err) {
+        logPoolEvent("health-check-prewarm-failed", { error: formatError(err) });
+      } finally {
+        browserLaunchPromise = null;
+      }
+    }
+  }, HEALTH_CHECK_INTERVAL_MS);
+  healthCheckTimer.unref?.();
 }
 
 /** Gracefully shut down the browser pool. */
-export async function closeBrowserPool(): Promise<void> {
-  if (idleTimer) {
-    clearTimeout(idleTimer);
-    idleTimer = null;
+export async function closeBrowserPool(reason = "shutdown"): Promise<void> {
+  if (healthCheckTimer) {
+    clearInterval(healthCheckTimer);
+    healthCheckTimer = null;
   }
-  if (browserInstance) {
-    await browserInstance.close().catch(() => {});
-    browserInstance = null;
-  }
+  logPoolEvent("pool-close-requested", { reason });
+  await closeBrowserInstance(reason);
 }
+
+export function getBrowserPoolStats(): {
+  totalLaunches: number;
+  totalCloses: number;
+  activePages: number;
+  activeRequests: number;
+  browserConnected: boolean;
+  browserPid: number | null;
+  totalRequestsServed: number;
+} {
+  return {
+    totalLaunches,
+    totalCloses,
+    activePages,
+    activeRequests,
+    browserConnected: Boolean(browserInstance?.isConnected()),
+    browserPid,
+    totalRequestsServed,
+  };
+}
+
+// Start health-check on module load
+startHealthCheck();
 
 // ---------------------------------------------------------------------------
 // Concurrency semaphore
 // ---------------------------------------------------------------------------
 
-let waiting: Array<() => void> = [];
+const waiting: Array<() => void> = [];
 
 async function acquireSlot(): Promise<void> {
-  if (activePages < MAX_CONCURRENT_PAGES) return;
-  await new Promise<void>((resolve) => {
-    waiting.push(resolve);
-  });
+  if (activeRequests >= MAX_CONCURRENT_PAGES) {
+    await new Promise<void>((resolve) => {
+      waiting.push(resolve);
+    });
+  }
+  activeRequests++;
 }
 
 function releaseSlot(): void {
+  activeRequests = Math.max(0, activeRequests - 1);
   const next = waiting.shift();
   if (next) next();
 }
 
 // ---------------------------------------------------------------------------
 // HTML helpers (inline, no external deps)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Circuit breaker for persistently failing URLs
+// ---------------------------------------------------------------------------
+
+const FAILURE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const MAX_FAILURES_BEFORE_BLOCK = 3;
+const MAX_FAILURE_CACHE_SIZE = 500;
+const failedUrlCache = new Map<string, { count: number; lastFailed: number }>();
+
+function shouldBlockUrl(url: string): boolean {
+  const entry = failedUrlCache.get(url);
+  if (!entry) return false;
+  if (Date.now() - entry.lastFailed > FAILURE_CACHE_TTL_MS) {
+    failedUrlCache.delete(url);
+    return false;
+  }
+  return entry.count >= MAX_FAILURES_BEFORE_BLOCK;
+}
+
+function recordUrlFailure(url: string): void {
+  const entry = failedUrlCache.get(url);
+  if (entry) {
+    entry.count++;
+    entry.lastFailed = Date.now();
+  } else {
+    // Evict oldest if cache is full
+    if (failedUrlCache.size >= MAX_FAILURE_CACHE_SIZE) {
+      const oldest = [...failedUrlCache.entries()].sort(
+        (a, b) => a[1].lastFailed - b[1].lastFailed,
+      )[0];
+      if (oldest) failedUrlCache.delete(oldest[0]);
+    }
+    failedUrlCache.set(url, { count: 1, lastFailed: Date.now() });
+  }
+}
+
+export function getCircuitBreakerStats(): { blockedUrls: number; cacheSize: number } {
+  // Clean expired entries first
+  const now = Date.now();
+  for (const [key, entry] of failedUrlCache) {
+    if (now - entry.lastFailed > FAILURE_CACHE_TTL_MS) failedUrlCache.delete(key);
+  }
+  return {
+    blockedUrls: [...failedUrlCache.values()].filter((e) => e.count >= MAX_FAILURES_BEFORE_BLOCK)
+      .length,
+    cacheSize: failedUrlCache.size,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// HTML helpers (inline, no external deps) — continued
 // ---------------------------------------------------------------------------
 
 function removeNoiseTags(html: string): string {
@@ -135,10 +401,7 @@ function removeNoiseTags(html: string): string {
 function htmlToText(html: string, maxChars: number): string {
   const withBreaks = html
     .replace(/<\s*br\s*\/?>/gi, "\n")
-    .replace(
-      /<\/\s*(p|div|article|section|li|h[1-6]|blockquote|pre|tr|td)\s*>/gi,
-      "\n",
-    );
+    .replace(/<\/\s*(p|div|article|section|li|h[1-6]|blockquote|pre|tr|td)\s*>/gi, "\n");
   const stripped = withBreaks.replace(/<[^>]+>/g, " ");
   const decoded = stripped
     .replace(/&nbsp;/gi, " ")
@@ -183,13 +446,16 @@ function guessWechatImageExt(url: string, contentType?: string): string {
   return ".jpg";
 }
 
-async function downloadWechatImage(imageUrl: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+async function downloadWechatImage(
+  imageUrl: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), WECHAT_IMG_TIMEOUT_MS);
     const response = await fetch(imageUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Referer: "https://mp.weixin.qq.com/",
       },
       signal: controller.signal,
@@ -246,7 +512,9 @@ async function replaceWechatImages(
           );
           return { originalUrl, blobUrl: uploaded.url };
         } catch (err) {
-          console.warn(`[browser] Failed to upload wechat image ${idx}: ${err instanceof Error ? err.message : err}`);
+          console.warn(
+            `[browser] Failed to upload wechat image ${idx}: ${err instanceof Error ? err.message : err}`,
+          );
           return null;
         }
       }),
@@ -316,13 +584,34 @@ export async function extractWithBrowser(
   const timeoutMs = options.timeoutMs ?? 30_000;
   const maxTextChars = options.maxTextChars ?? 120_000;
   const maxImages = options.maxImages ?? 24;
+  const requestId = `req-${++requestSequence}`;
+  const host = requestHost(url);
+  const startedAt = Date.now();
+
+  if (shouldBlockUrl(url)) {
+    logPoolEvent("request-circuit-breaker", { request_id: requestId, host, url });
+    throw new Error(
+      `URL blocked by circuit breaker after ${MAX_FAILURES_BEFORE_BLOCK} consecutive failures: ${url}`,
+    );
+  }
 
   await acquireSlot();
-  const browser = await acquireBrowser();
-
+  let browser: Browser | null = null;
+  let requestBrowserPid: number | null = null;
+  let context: BrowserContext | null = null;
   let page: Page | null = null;
+  let outcome: "ok" | "error" = "ok";
+  let requestError: string | null = null;
   try {
-    const context = await browser.newContext({
+    browser = await acquireBrowser();
+    requestBrowserPid = browserPid;
+    logPoolEvent("request-acquired", {
+      request_id: requestId,
+      host,
+      browser_pid: requestBrowserPid,
+    });
+
+    context = await browser.newContext({
       userAgent: sessionUA.ua,
       locale: "zh-CN",
       viewport: sessionViewport,
@@ -344,8 +633,16 @@ export async function extractWithBrowser(
       Object.defineProperty(navigator, "plugins", {
         get: () => {
           const plugins = [
-            { name: "Chrome PDF Plugin", filename: "internal-pdf-viewer", description: "Portable Document Format" },
-            { name: "Chrome PDF Viewer", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai", description: "" },
+            {
+              name: "Chrome PDF Plugin",
+              filename: "internal-pdf-viewer",
+              description: "Portable Document Format",
+            },
+            {
+              name: "Chrome PDF Viewer",
+              filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+              description: "",
+            },
             { name: "Native Client", filename: "internal-nacl-plugin", description: "" },
           ];
           const arr = plugins.map((p) => {
@@ -388,13 +685,15 @@ export async function extractWithBrowser(
       const getParameter = WebGLRenderingContext.prototype.getParameter;
       WebGLRenderingContext.prototype.getParameter = function (param: number) {
         if (param === 37445) return "Google Inc. (Apple)";
-        if (param === 37446) return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
+        if (param === 37446)
+          return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
         return getParameter.call(this, param);
       };
       const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
       WebGL2RenderingContext.prototype.getParameter = function (param: number) {
         if (param === 37445) return "Google Inc. (Apple)";
-        if (param === 37446) return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
+        if (param === 37446)
+          return "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)";
         return getParameter2.call(this, param);
       };
     });
@@ -412,9 +711,7 @@ export async function extractWithBrowser(
       ({ maxImgs }) => {
         // Title
         const ogTitle =
-          document
-            .querySelector('meta[property="og:title"]')
-            ?.getAttribute("content") || "";
+          document.querySelector('meta[property="og:title"]')?.getAttribute("content") || "";
         const titleEl = document.querySelector("title");
         const title = ogTitle || titleEl?.textContent?.trim() || "";
 
@@ -449,9 +746,7 @@ export async function extractWithBrowser(
 
         // og:image first
         const ogImage =
-          document
-            .querySelector('meta[property="og:image"]')
-            ?.getAttribute("content") || "";
+          document.querySelector('meta[property="og:image"]')?.getAttribute("content") || "";
         if (ogImage) {
           try {
             const resolved = new URL(ogImage, location.href).toString();
@@ -464,18 +759,13 @@ export async function extractWithBrowser(
 
         // img tags from content area
         const container =
-          document.querySelector("article") ||
-          document.querySelector("main") ||
-          document.body;
+          document.querySelector("article") || document.querySelector("main") || document.body;
         if (container) {
           const imgEls = container.querySelectorAll("img");
           for (const img of imgEls) {
             if (images.length >= maxImgs) break;
             const src =
-              img.src ||
-              img.getAttribute("data-src") ||
-              img.getAttribute("data-original") ||
-              "";
+              img.src || img.getAttribute("data-src") || img.getAttribute("data-original") || "";
             if (!src || src.startsWith("data:")) continue;
             try {
               const resolved = new URL(src, location.href).toString();
@@ -504,8 +794,6 @@ export async function extractWithBrowser(
     const cleanHtml = removeNoiseTags(fullHtml);
     const text = htmlToText(cleanHtml, maxTextChars);
 
-    await context.close();
-
     // For WeChat articles, download images to Vercel Blob to bypass hotlink protection
     let finalHtml = cleanHtml;
     let finalImages = data.images || [];
@@ -515,7 +803,9 @@ export async function extractWithBrowser(
         finalHtml = replaced.html;
         finalImages = replaced.images;
       } catch (err) {
-        console.warn(`[browser] WeChat image replacement failed, using originals: ${err instanceof Error ? err.message : err}`);
+        console.warn(
+          `[browser] WeChat image replacement failed, using originals: ${err instanceof Error ? err.message : err}`,
+        );
       }
     }
 
@@ -529,8 +819,43 @@ export async function extractWithBrowser(
       author: data.author || "",
       published_at: data.published_at || "",
     };
+  } catch (error) {
+    outcome = "error";
+    requestError = formatError(error);
+    recordUrlFailure(url);
+    logPoolEvent("request-failed", {
+      request_id: requestId,
+      host,
+      browser_pid: requestBrowserPid,
+      duration_ms: Date.now() - startedAt,
+      error: requestError,
+    });
+    throw error;
   } finally {
+    const cleanupErrors: string[] = [];
+
+    if (page && !page.isClosed()) {
+      await page.close().catch((error) => {
+        cleanupErrors.push(`page: ${formatError(error)}`);
+      });
+    }
+
+    if (context) {
+      await context.close().catch((error) => {
+        cleanupErrors.push(`context: ${formatError(error)}`);
+      });
+    }
+
     releasePage();
     releaseSlot();
+    logPoolEvent("request-released", {
+      request_id: requestId,
+      host,
+      browser_pid: requestBrowserPid,
+      duration_ms: Date.now() - startedAt,
+      outcome,
+      error: requestError,
+      cleanup_errors: cleanupErrors.length ? cleanupErrors : undefined,
+    });
   }
 }

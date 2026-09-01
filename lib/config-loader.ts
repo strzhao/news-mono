@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
-import { SourceConfig } from "@/lib/domain/models";
+import type { SourceConfig } from "@/lib/domain/models";
 
 const DEFAULT_CONFIG_DIR = path.join(process.cwd(), "config");
 
@@ -24,7 +24,9 @@ function normalizeSourceUrl(rawUrl: string): string {
   const url = rawUrl.trim();
   try {
     const parsed = new URL(url);
-    const entries = Array.from(parsed.searchParams.entries()).map(([k, v]) => [k.toLowerCase(), v] as [string, string]);
+    const entries = Array.from(parsed.searchParams.entries()).map(
+      ([k, v]) => [k.toLowerCase(), v] as [string, string],
+    );
     entries.sort(([a], [b]) => a.localeCompare(b));
     const normalized = new URL(parsed.toString());
     normalized.protocol = parsed.protocol.toLowerCase();
@@ -83,6 +85,12 @@ export function loadSources(sourcePath?: string): SourceConfig[] {
       sourceWeight: Number(record.source_weight ?? 1.0) || 1.0,
       sourceType: String(record.source_type || "rss").trim(),
       onlyExternalLinks: Boolean(record.only_external_links || false),
+      fetchMethod: (String(record.fetch_method || "").trim() ||
+        "rss") as SourceConfig["fetchMethod"],
+      fallbackFetchMethod: (String(record.fallback_fetch_method || "").trim() ||
+        undefined) as SourceConfig["fallbackFetchMethod"],
+      wechatSogouQuery: String(record.wechat_sogou_query || "").trim() || undefined,
+      wechatSogouAuthor: String(record.wechat_sogou_author || "").trim() || undefined,
     });
 
     seenIds.add(sourceId);

@@ -7,10 +7,7 @@
  * Returns the same `ArticleContentPayload` shape as `fetchArticleContent` so
  * callers can use either interchangeably.
  */
-import type {
-  ArticleContentPayload,
-  ArticleImageResource,
-} from "./article-content-fetcher";
+import type { ArticleContentPayload, ArticleImageResource } from "./article-content-fetcher";
 import { retryWithBackoff } from "./retry";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -84,17 +81,13 @@ export async function fetchViaBrowser(
 
         const result = (await response.json()) as BrowserServiceResponse;
         if (!result.ok || !result.data) {
-          throw new Error(
-            `Browser extract failed: ${result.error || "unknown error"}`,
-          );
+          throw new Error(`Browser extract failed: ${result.error || "unknown error"}`);
         }
 
-        const images: ArticleImageResource[] = (result.data.images || []).map(
-          (img) => ({
-            url: img.url,
-            alt: img.alt || "",
-          }),
-        );
+        const images: ArticleImageResource[] = (result.data.images || []).map((img) => ({
+          url: img.url,
+          alt: img.alt || "",
+        }));
 
         return {
           sourceUrl: result.data.source_url || url,

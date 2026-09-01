@@ -58,6 +58,8 @@ export class FlomoClient {
       }
     }
 
-    throw new FlomoSyncError(`Flomo sync failed after retries: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+    throw new FlomoSyncError(
+      `Flomo sync failed after retries: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+    );
   }
 }

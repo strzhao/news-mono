@@ -1,4 +1,3 @@
-import { DeepSeekClient } from "@/lib/llm/deepseek-client";
 import {
   createTagGovernanceRun,
   deactivateTagDefinition,
@@ -11,7 +10,8 @@ import {
   replaceTagInAnalysisTagGroups,
   upsertTagDefinition,
 } from "@/lib/article-db/repository";
-import { TagDefinition, TagGovernanceAction } from "@/lib/article-db/types";
+import type { TagDefinition, TagGovernanceAction } from "@/lib/article-db/types";
+import { DeepSeekClient } from "@/lib/llm/deepseek-client";
 
 const VALID_ACTION_TYPES = new Set<TagGovernanceAction["type"]>([
   "create_canonical",
@@ -45,7 +45,7 @@ function normalizeTagKey(value: string): string {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -53,11 +53,7 @@ function normalizeTagKey(value: string): string {
 function parseAliases(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return Array.from(
-    new Set(
-      raw
-        .map((item) => normalizeTagKey(String(item || "")))
-        .filter(Boolean),
-    ),
+    new Set(raw.map((item) => normalizeTagKey(String(item || ""))).filter(Boolean)),
   );
 }
 
@@ -100,7 +96,10 @@ function parseActions(raw: unknown): TagGovernanceAction[] {
     .filter((item): item is TagGovernanceAction => Boolean(item));
 }
 
-function mergeObject(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
+function mergeObject(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>,
+): Record<string, unknown> {
   const output: Record<string, unknown> = { ...base };
   Object.entries(override || {}).forEach(([key, value]) => {
     const current = output[key];
@@ -112,7 +111,10 @@ function mergeObject(base: Record<string, unknown>, override: Record<string, unk
       !Array.isArray(current) &&
       !Array.isArray(value)
     ) {
-      output[key] = mergeObject(current as Record<string, unknown>, value as Record<string, unknown>);
+      output[key] = mergeObject(
+        current as Record<string, unknown>,
+        value as Record<string, unknown>,
+      );
       return;
     }
     output[key] = value;
@@ -145,10 +147,13 @@ async function upsertWithExisting(params: {
     groupKey: params.groupKey,
     tagKey: params.tagKey,
     displayName: params.displayName || existing?.display_name || params.tagKey,
-    description: params.description !== undefined ? params.description : existing?.description || "",
+    description:
+      params.description !== undefined ? params.description : existing?.description || "",
     aliases:
-      params.aliases !== undefined ? unionAliases(params.aliases) : unionAliases(existing?.aliases || []),
-    isActive: params.isActive !== undefined ? params.isActive : existing?.is_active ?? true,
+      params.aliases !== undefined
+        ? unionAliases(params.aliases)
+        : unionAliases(existing?.aliases || []),
+    isActive: params.isActive !== undefined ? params.isActive : (existing?.is_active ?? true),
     managedBy: params.managedBy,
   });
   return getTagDefinition(params.groupKey, params.tagKey);
@@ -184,7 +189,8 @@ async function applyAction(action: TagGovernanceAction): Promise<Record<string, 
       tagKey,
       managedBy,
       displayName: action.display_name || existing?.display_name || tagKey,
-      description: action.description !== undefined ? action.description : existing?.description || "",
+      description:
+        action.description !== undefined ? action.description : existing?.description || "",
       aliases,
       isActive: existing?.is_active ?? true,
     });
@@ -237,7 +243,8 @@ async function applyAction(action: TagGovernanceAction): Promise<Record<string, 
       tagKey: targetTag,
       managedBy,
       displayName: action.display_name || target?.display_name || targetTag,
-      description: action.description !== undefined ? action.description : target?.description || "",
+      description:
+        action.description !== undefined ? action.description : target?.description || "",
       aliases: targetAliases,
       isActive: true,
     });
@@ -344,7 +351,9 @@ export interface RunTagGovernanceResult {
   critic: Record<string, unknown>;
 }
 
-export async function runTagGovernance(options: RunTagGovernanceOptions = {}): Promise<RunTagGovernanceResult> {
+export async function runTagGovernance(
+  options: RunTagGovernanceOptions = {},
+): Promise<RunTagGovernanceResult> {
   const objectiveId = String(options.objectiveId || "default").trim() || "default";
   const dryRun = options.dryRun !== undefined ? Boolean(options.dryRun) : true;
   const lookbackDays = Math.max(1, Math.min(180, Math.trunc(options.lookbackDays || 30)));

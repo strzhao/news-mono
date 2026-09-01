@@ -1,5 +1,4 @@
-import type { ExtractionTask, ExtractedResource, ExtractionMetadata } from "@/lib/domain/url-extraction-models";
-import { fetchJson } from "@/lib/infra/http";
+import type { ExtractedResource, ExtractionMetadata } from "@/lib/domain/url-extraction-models";
 
 /**
  * Extract Twitter/X content via RSSHub.
@@ -7,9 +6,11 @@ import { fetchJson } from "@/lib/infra/http";
  */
 export async function extractTwitterContent(
   url: string,
-  taskId: string,
+  _taskId: string,
 ): Promise<{ resources: ExtractedResource[]; metadata: ExtractionMetadata }> {
-  const rsshubBase = String(process.env.RSSHUB_BASE_URL || "").trim().replace(/\/$/, "");
+  const rsshubBase = String(process.env.RSSHUB_BASE_URL || "")
+    .trim()
+    .replace(/\/$/, "");
   if (!rsshubBase) {
     throw new Error("RSSHUB_BASE_URL is not configured");
   }
@@ -34,7 +35,9 @@ export async function extractTwitterContent(
 
   // Parse RSS items to find the matching tweet
   const items = parseRssItems(rssXml);
-  console.log(`[twitter-extractor] feedUrl=${feedUrl} items=${items.length} target=${tweetInfo.tweetId}`);
+  console.log(
+    `[twitter-extractor] feedUrl=${feedUrl} items=${items.length} target=${tweetInfo.tweetId}`,
+  );
   const matchingItem = items.find(
     (item) => item.link.includes(tweetInfo.tweetId) || item.guid?.includes(tweetInfo.tweetId),
   );
@@ -65,9 +68,10 @@ export async function extractTwitterContent(
       });
     }
   } else {
-    const hint = items.length === 0
-      ? "RSSHub 返回了空 feed，可能该用户没有推文或 RSSHub Twitter 路由异常"
-      : `RSSHub 仅缓存了该用户最近 ${items.length} 条推文，目标推文不在其中（推文可能较旧）`;
+    const hint =
+      items.length === 0
+        ? "RSSHub 返回了空 feed，可能该用户没有推文或 RSSHub Twitter 路由异常"
+        : `RSSHub 仅缓存了该用户最近 ${items.length} 条推文，目标推文不在其中（推文可能较旧）`;
     throw new Error(`无法通过 RSSHub 获取推文内容。${hint}`);
   }
 
@@ -141,7 +145,10 @@ function parseRssItems(xml: string): RssItem[] {
 }
 
 function extractTag(xml: string, tagName: string): string {
-  const re = new RegExp(`<${tagName}[^>]*>\\s*(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?\\s*<\\/${tagName}>`, "i");
+  const re = new RegExp(
+    `<${tagName}[^>]*>\\s*(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?\\s*<\\/${tagName}>`,
+    "i",
+  );
   const match = re.exec(xml);
   return match ? String(match[1] || "").trim() : "";
 }
@@ -165,7 +172,7 @@ function extractImageUrls(html: string): string[] {
   let match: RegExpExecArray | null = null;
   while ((match = imgRe.exec(html)) !== null) {
     const src = String(match[1] || "").trim();
-    if (src && src.startsWith("http")) {
+    if (src?.startsWith("http")) {
       urls.push(src);
     }
   }

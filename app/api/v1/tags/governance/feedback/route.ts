@@ -1,5 +1,8 @@
 import { requireArticleDbAuth } from "@/lib/article-db/auth";
-import { appendTagGovernanceFeedback, listTagGovernanceFeedbackStats } from "@/lib/article-db/repository";
+import {
+  appendTagGovernanceFeedback,
+  listTagGovernanceFeedbackStats,
+} from "@/lib/article-db/repository";
 import { jsonResponse } from "@/lib/infra/route-utils";
 
 export const runtime = "nodejs";
@@ -42,12 +45,17 @@ async function parseBody(request: Request): Promise<FeedbackBody> {
 export async function GET(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   try {
     const url = new URL(request.url);
-    const objectiveId = String(url.searchParams.get("objective_id") || "default").trim() || "default";
+    const objectiveId =
+      String(url.searchParams.get("objective_id") || "default").trim() || "default";
     const days = Math.max(1, Math.min(365, parseIntSafe(url.searchParams.get("days"), 30)));
     const limit = Math.max(10, Math.min(2000, parseIntSafe(url.searchParams.get("limit"), 500)));
 
@@ -71,20 +79,32 @@ export async function GET(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }
 
 export async function POST(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   try {
     const body = await parseBody(request);
     const defaultObjectiveId = String(body.objective_id || "default").trim() || "default";
-    const events: FeedbackEventBody[] = Array.isArray(body.events) ? body.events : body.event ? [body.event] : [];
+    const events: FeedbackEventBody[] = Array.isArray(body.events)
+      ? body.events
+      : body.event
+        ? [body.event]
+        : [];
 
     if (!events.length) {
       return jsonResponse(400, { ok: false, error: "Missing feedback events" }, true);
@@ -124,6 +144,10 @@ export async function POST(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(400, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      400,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

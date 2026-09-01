@@ -13,10 +13,12 @@
  * Usage: npm run xhs-keep-alive
  * Recommended: run via cron every 12 hours.
  */
-import { chromium, type Page } from "playwright";
+
 import { stat } from "node:fs/promises";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
+import type { Page } from "playwright";
+import { launchBackgroundBrowser } from "./browser-runtime.js";
 
 const STATE_FILE = join(homedir(), ".xhs-session", "state.json");
 
@@ -87,23 +89,20 @@ async function main() {
 
   // Random startup delay: 0–10 minutes
   const delayMs = randInt(0, 10 * 60 * 1000);
-  console.log(`[${new Date().toISOString()}] Waiting ${Math.round(delayMs / 1000)}s before starting...`);
+  console.log(
+    `[${new Date().toISOString()}] Waiting ${Math.round(delayMs / 1000)}s before starting...`,
+  );
   await new Promise((r) => setTimeout(r, delayMs));
 
-  const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || "";
   const viewport = pickRandom(VIEWPORTS);
 
-  const browser = await chromium.launch({
-    headless: true,
-    channel: "chrome",
-    ...(proxyUrl ? { proxy: { server: proxyUrl } } : {}),
-    args: ["--disable-blink-features=AutomationControlled"],
-  });
+  const browser = await launchBackgroundBrowser();
 
   try {
     const context = await browser.newContext({
       storageState: STATE_FILE,
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       locale: "zh-CN",
       viewport,
     });
@@ -145,14 +144,21 @@ async function main() {
     // Check if still logged in
     const cookies = await context.cookies("https://www.xiaohongshu.com");
     const hasAuth = cookies.some(
-      (c) => c.name === "web_session" || c.name === "customer-sso-sid" || c.name === "galaxy_creator_session_id",
+      (c) =>
+        c.name === "web_session" ||
+        c.name === "customer-sso-sid" ||
+        c.name === "galaxy_creator_session_id",
     );
 
     if (hasAuth) {
       await context.storageState({ path: STATE_FILE });
-      console.log(`[${new Date().toISOString()}] XHS session refreshed (${cookies.length} cookies, viewport ${viewport.width}x${viewport.height})`);
+      console.log(
+        `[${new Date().toISOString()}] XHS session refreshed (${cookies.length} cookies, viewport ${viewport.width}x${viewport.height})`,
+      );
     } else {
-      console.error(`[${new Date().toISOString()}] XHS session expired! Run 'npm run xhs-login' to re-login.`);
+      console.error(
+        `[${new Date().toISOString()}] XHS session expired! Run 'npm run xhs-login' to re-login.`,
+      );
       process.exit(1);
     }
 

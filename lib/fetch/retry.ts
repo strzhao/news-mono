@@ -4,7 +4,7 @@
  * Supports 429 Retry-After header, configurable retryable status codes,
  * and ±20% jitter to avoid thundering herd.
  */
-import { FetchError, isRetryableStatus, classifyHttpStatus, extractDomain } from "./errors";
+import { classifyHttpStatus, extractDomain, FetchError, isRetryableStatus } from "./errors";
 
 export interface RetryOptions {
   maxRetries?: number;
@@ -23,7 +23,8 @@ function isRetryableError(err: unknown): boolean {
     // Abort/timeout errors
     if (msg.includes("abort") || msg.includes("timeout")) return true;
     // Network errors
-    if (msg.includes("fetch failed") || msg.includes("econnreset") || msg.includes("econnrefused")) return true;
+    if (msg.includes("fetch failed") || msg.includes("econnreset") || msg.includes("econnrefused"))
+      return true;
     // HTTP status in message
     const statusMatch = msg.match(/\b(\d{3})\b/);
     if (statusMatch) {
@@ -58,7 +59,7 @@ export async function retryWithBackoff<T>(
 
       // ±20% jitter
       const jitter = 0.8 + Math.random() * 0.4;
-      const delay = Math.min(baseDelayMs * Math.pow(2, attempt) * jitter, maxDelayMs);
+      const delay = Math.min(baseDelayMs * 2 ** attempt * jitter, maxDelayMs);
 
       console.warn(
         `[retry] Attempt ${attempt + 1}/${maxRetries} failed, retrying in ${Math.round(delay)}ms: ${err instanceof Error ? err.message : err}`,
@@ -73,10 +74,7 @@ export async function retryWithBackoff<T>(
  * Wrap a fetch call to throw FetchError with proper classification.
  * Use this around raw fetch() calls to get structured errors.
  */
-export async function fetchWithClassifiedError(
-  url: string,
-  init: RequestInit,
-): Promise<Response> {
+export async function fetchWithClassifiedError(url: string, init: RequestInit): Promise<Response> {
   const domain = extractDomain(url);
   try {
     const response = await fetch(url, init);

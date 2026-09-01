@@ -3,12 +3,17 @@ import { requireArticleDbAuth } from "@/lib/article-db/auth";
 import { detectPlatform, requiresWorker } from "@/lib/domain/platform-detector";
 import {
   DEFAULT_BLOB_TTL_HOURS,
-  type ExtractionTask,
   type ExtractedResource,
+  type ExtractionTask,
 } from "@/lib/domain/url-extraction-models";
-import { fetchArticleContentSmart, extractRelatedImagesFromHtml } from "@/lib/fetch/article-content-fetcher";
+import { fetchArticleContentSmart } from "@/lib/fetch/article-content-fetcher";
 import { extractTwitterContent } from "@/lib/fetch/twitter-extractor";
-import { enqueueExtractionTask, listPendingTasks, listUserTasks, saveCompletedTask } from "@/lib/infra/extraction-queue";
+import {
+  enqueueExtractionTask,
+  listPendingTasks,
+  listUserTasks,
+  saveCompletedTask,
+} from "@/lib/infra/extraction-queue";
 import { jsonResponse } from "@/lib/infra/route-utils";
 import { buildUpstashClientOrNone } from "@/lib/infra/upstash";
 import { generateArticleSummary } from "@/lib/llm/article-summary-generator";
@@ -18,7 +23,10 @@ export const maxDuration = 120;
 export const preferredRegion = ["sin1"];
 
 /** Generate AI summary for extracted content; returns markdown or undefined on failure. */
-async function tryGenerateAiSummary(task: ExtractionTask, extractedText?: string): Promise<string | undefined> {
+async function tryGenerateAiSummary(
+  task: ExtractionTask,
+  extractedText?: string,
+): Promise<string | undefined> {
   const contentText = extractedText || task.metadata.description || "";
   if (contentText.length < 50) return undefined;
 
@@ -74,14 +82,20 @@ function extractTitle(html: string): string {
   return titleMatch ? String(titleMatch[1] || "").trim() : "";
 }
 
-async function extractWebpage(url: string, taskId: string, platform: string): Promise<ExtractionTask & { _extractedText?: string }> {
+async function extractWebpage(
+  url: string,
+  taskId: string,
+  platform: string,
+): Promise<ExtractionTask & { _extractedText?: string }> {
   const content = await fetchArticleContentSmart(url, {
     timeoutMs: 15_000,
     httpOnly: platform === "wechat",
   });
 
   if (content.text.length < 50) {
-    throw new Error(`Extraction returned insufficient content (${content.text.length} chars) for ${url}`);
+    throw new Error(
+      `Extraction returned insufficient content (${content.text.length} chars) for ${url}`,
+    );
   }
 
   const resources: ExtractedResource[] = [];
@@ -120,7 +134,10 @@ async function extractWebpage(url: string, taskId: string, platform: string): Pr
     metadata: {
       title: extractTitle(content.html) || url,
       description: ogDesc || content.text.slice(0, 300),
-      author: extractMetaContent(content.html, "author") || extractMetaContent(content.html, "og:site_name") || "",
+      author:
+        extractMetaContent(content.html, "author") ||
+        extractMetaContent(content.html, "og:site_name") ||
+        "",
       published_at: extractMetaContent(content.html, "article:published_time") || undefined,
       tags: [],
     },
@@ -151,17 +168,33 @@ async function extractTwitter(url: string, taskId: string): Promise<ExtractionTa
 export async function POST(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   try {
-    const body = (await request.json()) as { url?: string; blob_ttl_hours?: number; user_id?: string; ai_summary?: boolean };
+    const body = (await request.json()) as {
+      url?: string;
+      blob_ttl_hours?: number;
+      user_id?: string;
+      ai_summary?: boolean;
+    };
     const url = String(body?.url || "").trim();
     if (!url || !isValidUrl(url)) {
-      return jsonResponse(400, { ok: false, error: "invalid_url", message: "请提供有效的 URL" }, true);
+      return jsonResponse(
+        400,
+        { ok: false, error: "invalid_url", message: "请提供有效的 URL" },
+        true,
+      );
     }
 
-    const blobTtlHours = Math.max(1, Math.min(168, Number(body?.blob_ttl_hours) || DEFAULT_BLOB_TTL_HOURS));
+    const blobTtlHours = Math.max(
+      1,
+      Math.min(168, Number(body?.blob_ttl_hours) || DEFAULT_BLOB_TTL_HOURS),
+    );
     const userId = String(body?.user_id || "").trim();
     const wantAiSummary = Boolean(body?.ai_summary);
     const taskId = generateTaskId();
@@ -201,7 +234,11 @@ export async function POST(request: Request): Promise<Response> {
     if (requiresWorker(platform)) {
       const redis = buildUpstashClientOrNone();
       if (!redis) {
-        return jsonResponse(503, { ok: false, error: "queue_unavailable", message: "Redis 未配置，无法创建异步提取任务" }, true);
+        return jsonResponse(
+          503,
+          { ok: false, error: "queue_unavailable", message: "Redis 未配置，无法创建异步提取任务" },
+          true,
+        );
       }
 
       const task: ExtractionTask = {
@@ -218,23 +255,32 @@ export async function POST(request: Request): Promise<Response> {
 
       await enqueueExtractionTask(redis, task);
 
-      return jsonResponse(202, {
-        ok: true,
-        task: {
-          task_id: taskId,
-          url,
-          platform,
-          status: "pending",
-          created_at: task.created_at,
-          blob_ttl_hours: blobTtlHours,
+      return jsonResponse(
+        202,
+        {
+          ok: true,
+          task: {
+            task_id: taskId,
+            url,
+            platform,
+            status: "pending",
+            created_at: task.created_at,
+            blob_ttl_hours: blobTtlHours,
+          },
         },
-      }, true);
+        true,
+      );
     }
 
-    return jsonResponse(400, { ok: false, error: "unsupported_platform", message: `不支持的平台: ${platform}` }, true);
+    return jsonResponse(
+      400,
+      { ok: false, error: "unsupported_platform", message: `不支持的平台: ${platform}` },
+      true,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const isExtractionFailure = message.includes("Extraction returned insufficient") || message.includes("Browser extract");
+    const isExtractionFailure =
+      message.includes("Extraction returned insufficient") || message.includes("Browser extract");
     return jsonResponse(
       isExtractionFailure ? 422 : 500,
       { ok: false, error: isExtractionFailure ? "extraction_failed" : "internal_error", message },
@@ -272,6 +318,10 @@ export async function GET(request: Request): Promise<Response> {
 
     return jsonResponse(200, { ok: true, tasks }, true);
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

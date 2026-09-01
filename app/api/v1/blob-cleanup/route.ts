@@ -1,5 +1,5 @@
-import { jsonResponse } from "@/lib/infra/route-utils";
 import { listExpiredTaskIds } from "@/lib/infra/extraction-queue";
+import { jsonResponse } from "@/lib/infra/route-utils";
 import { buildUpstashClientOrNone } from "@/lib/infra/upstash";
 
 export const runtime = "nodejs";
@@ -25,7 +25,11 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const redis = buildUpstashClientOrNone();
     if (!redis) {
-      return jsonResponse(200, { ok: true, message: "Redis not configured, skipping cleanup", deleted: 0 }, true);
+      return jsonResponse(
+        200,
+        { ok: true, message: "Redis not configured, skipping cleanup", deleted: 0 },
+        true,
+      );
     }
 
     const expiredIds = await listExpiredTaskIds(redis);
@@ -39,13 +43,21 @@ export async function GET(request: Request): Promise<Response> {
       await redis.command(["ZREM", "extraction:completed", taskId]);
     }
 
-    return jsonResponse(200, {
-      ok: true,
-      message: `Cleaned up ${expiredIds.length} expired tasks`,
-      deleted: expiredIds.length,
-      task_ids: expiredIds,
-    }, true);
+    return jsonResponse(
+      200,
+      {
+        ok: true,
+        message: `Cleaned up ${expiredIds.length} expired tasks`,
+        deleted: expiredIds.length,
+        task_ids: expiredIds,
+      },
+      true,
+    );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

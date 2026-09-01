@@ -18,7 +18,11 @@ export async function GET(
 ): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   const params = await context.params;
@@ -31,13 +35,17 @@ export async function GET(
     const existing = await getArticleSummary(articleId);
 
     if (existing && existing.status === "completed") {
-      return jsonResponse(200, {
-        ok: true,
-        status: "completed",
-        summary_markdown: existing.summary_markdown,
-        model_name: existing.model_name,
-        updated_at: existing.updated_at,
-      }, true);
+      return jsonResponse(
+        200,
+        {
+          ok: true,
+          status: "completed",
+          summary_markdown: existing.summary_markdown,
+          model_name: existing.model_name,
+          updated_at: existing.updated_at,
+        },
+        true,
+      );
     }
 
     if (existing && existing.status === "generating") {
@@ -86,13 +94,17 @@ export async function GET(
         status: "completed",
       });
 
-      return jsonResponse(200, {
-        ok: true,
-        status: "completed",
-        summary_markdown: result.markdown,
-        model_name: result.modelName,
-        updated_at: new Date().toISOString(),
-      }, true);
+      return jsonResponse(
+        200,
+        {
+          ok: true,
+          status: "completed",
+          summary_markdown: result.markdown,
+          model_name: result.modelName,
+          updated_at: new Date().toISOString(),
+        },
+        true,
+      );
     } catch (genError) {
       const errorMessage = genError instanceof Error ? genError.message : String(genError);
       await upsertArticleSummary({
@@ -104,16 +116,24 @@ export async function GET(
         errorMessage: errorMessage.slice(0, 2000),
       });
 
-      return jsonResponse(200, {
-        ok: true,
-        status: "failed",
-        error: errorMessage,
-      }, true);
+      return jsonResponse(
+        200,
+        {
+          ok: true,
+          status: "failed",
+          error: errorMessage,
+        },
+        true,
+      );
     }
   } catch (error) {
-    return jsonResponse(500, {
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }, true);
+    return jsonResponse(
+      500,
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      true,
+    );
   }
 }

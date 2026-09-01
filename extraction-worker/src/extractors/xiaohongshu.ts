@@ -14,11 +14,11 @@
  *   6. Build text content → upload to Blob
  */
 import { execFile } from "node:child_process";
-import { tmpdir, homedir } from "node:os";
-import { mkdtemp, rm, readdir, readFile, stat } from "node:fs/promises";
-import { join, extname } from "node:path";
-import { chromium } from "playwright";
-import { uploadFileToBlob, uploadBufferToBlob } from "../upload.js";
+import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { extname, join } from "node:path";
+import { uploadBufferToBlob, uploadFileToBlob } from "../upload.js";
+import { acquireBrowser, releasePage } from "./browser.js";
 import { ytdlpProxyArgs } from "./youtube.js";
 
 const XHS_STATE_FILE = join(homedir(), ".xhs-session", "state.json");
@@ -65,13 +65,18 @@ function computeExpiresAt(ttlHours: number): string {
 
 function exec(cmd: string, args: string[], cwd: string, timeoutMs = 120_000): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { cwd, maxBuffer: 10 * 1024 * 1024, timeout: timeoutMs }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(`${cmd} failed: ${error.message}\nstderr: ${stderr}`));
-        return;
-      }
-      resolve(stdout);
-    });
+    execFile(
+      cmd,
+      args,
+      { cwd, maxBuffer: 10 * 1024 * 1024, timeout: timeoutMs },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`${cmd} failed: ${error.message}\nstderr: ${stderr}`));
+          return;
+        }
+        resolve(stdout);
+      },
+    );
   });
 }
 
@@ -93,7 +98,8 @@ async function downloadImage(imageUrl: string): Promise<Buffer | null> {
     const timeout = setTimeout(() => controller.abort(), 15_000);
     const response = await fetch(fullUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Referer: "https://www.xiaohongshu.com/",
       },
       signal: controller.signal,
@@ -130,33 +136,26 @@ async function hasSessionState(): Promise<boolean> {
 
 // Use Playwright to load XHS page and extract note data from the rendered DOM
 async function extractViaPlaywright(url: string, taskId: string): Promise<NoteData | null> {
-  const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || "";
-
-  const launchOptions: Record<string, unknown> = {
-    headless: true,
-    channel: "chrome",
-    args: ["--disable-blink-features=AutomationControlled"],
-  };
-  if (proxyUrl) {
-    launchOptions.proxy = { server: proxyUrl };
-  }
-
   // Check for saved session state
   const hasState = await hasSessionState();
   if (!hasState) {
-    console.log(`[${taskId}] No XHS session found. Run 'npx tsx src/xhs-login.ts' to log in first.`);
+    console.log(
+      `[${taskId}] No XHS session found. Run 'npx tsx src/xhs-login.ts' to log in first.`,
+    );
   }
 
-  const browser = await chromium.launch(launchOptions);
+  const browser = await acquireBrowser();
+  let context: Awaited<ReturnType<typeof browser.newContext>> | null = null;
   try {
     const contextOptions: Record<string, unknown> = {
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
       locale: "zh-CN",
     };
     if (hasState) {
       contextOptions.storageState = XHS_STATE_FILE;
     }
-    const context = await browser.newContext(contextOptions);
+    context = await browser.newContext(contextOptions);
     const page = await context.newPage();
 
     // Anti-detection: hide webdriver flag
@@ -169,7 +168,9 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
 
     // Dismiss login popup if it appears (XHS shows modal overlay even with valid session)
     try {
-      const closeBtn = await page.$(".close-button, [class*=close], .login-modal [class*=close], [class*=modal] [class*=close]");
+      const closeBtn = await page.$(
+        ".close-button, [class*=close], .login-modal [class*=close], [class*=modal] [class*=close]",
+      );
       if (closeBtn) {
         await closeBtn.click();
         console.log(`[${taskId}] Dismissed login popup`);
@@ -181,7 +182,9 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
 
     // Wait for note content to appear (XHS renders note into #noteContainer or similar)
     try {
-      await page.waitForSelector("#detail-desc, .note-text, .note-content, [class*=note-text]", { timeout: 15_000 });
+      await page.waitForSelector("#detail-desc, .note-text, .note-content, [class*=note-text]", {
+        timeout: 15_000,
+      });
     } catch {
       // Content selector not found, try waiting for __INITIAL_STATE__ to be populated
       console.log(`[${taskId}] Content selector not found, waiting for network idle...`);
@@ -215,11 +218,11 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
           const map = state.note.noteDetailMap;
           // Find the note - try noteId directly, or iterate
           let note = map[noteId]?.note;
-          if (!note || !note.title) {
+          if (!note?.title) {
             // Try finding any populated note entry
             for (const key of Object.keys(map)) {
               const candidate = map[key]?.note;
-              if (candidate && candidate.title) {
+              if (candidate?.title) {
                 note = candidate;
                 break;
               }
@@ -240,23 +243,35 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
             // Interaction
             const interact = note.interactInfo || note.interact_info || {};
             result.likedCount = String(interact.likedCount || interact.liked_count || "");
-            result.collectedCount = String(interact.collectedCount || interact.collected_count || "");
+            result.collectedCount = String(
+              interact.collectedCount || interact.collected_count || "",
+            );
             result.commentCount = String(interact.commentCount || interact.comment_count || "");
             result.shareCount = String(interact.shareCount || interact.share_count || "");
 
             // Images
             const imageList = note.imageList || note.image_list || [];
-            result.imageUrls = imageList.map((img: any) => {
-              return img.urlDefault || img.url_default || img.urlPre || img.url_pre || img.url || "";
-            }).filter(Boolean);
+            result.imageUrls = imageList
+              .map((img: any) => {
+                return (
+                  img.urlDefault || img.url_default || img.urlPre || img.url_pre || img.url || ""
+                );
+              })
+              .filter(Boolean);
 
             // Video
             const video = note.video || {};
-            if (video.consumer?.originVideoKey || video.url || video.media?.stream?.h264?.[0]?.masterUrl) {
+            if (
+              video.consumer?.originVideoKey ||
+              video.url ||
+              video.media?.stream?.h264?.[0]?.masterUrl
+            ) {
               result.isVideo = true;
-              result.videoUrl = video.media?.stream?.h264?.[0]?.masterUrl
-                || video.consumer?.originVideoKey
-                || video.url || "";
+              result.videoUrl =
+                video.media?.stream?.h264?.[0]?.masterUrl ||
+                video.consumer?.originVideoKey ||
+                video.url ||
+                "";
               result.videoCoverUrl = video.cover?.urlDefault || video.cover?.url || "";
             }
 
@@ -274,15 +289,21 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
         if (titleEl) result.title = titleEl.textContent?.trim() || "";
 
         // Description/content
-        const descEl = document.querySelector("#detail-desc, .note-text, .desc, [class*=note-text], [class*=content]");
+        const descEl = document.querySelector(
+          "#detail-desc, .note-text, .desc, [class*=note-text], [class*=content]",
+        );
         if (descEl) result.desc = descEl.textContent?.trim() || "";
 
         // Author
-        const authorEl = document.querySelector(".author-name, [class*=author-name], .user-name, [class*=username]");
+        const authorEl = document.querySelector(
+          ".author-name, [class*=author-name], .user-name, [class*=username]",
+        );
         if (authorEl) result.author = authorEl.textContent?.trim() || "";
 
         // Images from the note carousel/gallery
-        const imgElements = document.querySelectorAll(".swiper-slide img, .note-slider img, [class*=slide] img, .carousel img");
+        const imgElements = document.querySelectorAll(
+          ".swiper-slide img, .note-slider img, [class*=slide] img, .carousel img",
+        );
         const urls: string[] = [];
         imgElements.forEach((img) => {
           const src = (img as HTMLImageElement).src || img.getAttribute("data-src") || "";
@@ -301,10 +322,12 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
         }
 
         // Tags from hashtag links
-        document.querySelectorAll("a[href*='/search_result/'], .tag, [class*=hashtag]").forEach((el) => {
-          const text = el.textContent?.trim().replace(/^#/, "");
-          if (text) result.tags.push(text);
-        });
+        document
+          .querySelectorAll("a[href*='/search_result/'], .tag, [class*=hashtag]")
+          .forEach((el) => {
+            const text = el.textContent?.trim().replace(/^#/, "");
+            if (text) result.tags.push(text);
+          });
 
         // Video element
         const videoEl = document.querySelector("video");
@@ -319,15 +342,13 @@ async function extractViaPlaywright(url: string, taskId: string): Promise<NoteDa
       return result;
     }, extractNoteId(url));
 
-    await browser.close();
-
     if (!noteData || (!noteData.title && !noteData.desc && noteData.imageUrls.length === 0)) {
       return null;
     }
     return noteData as NoteData;
-  } catch (err) {
-    await browser.close().catch(() => {});
-    throw err;
+  } finally {
+    if (context) await context.close().catch(() => {});
+    releasePage();
   }
 }
 
@@ -371,12 +392,16 @@ export async function extractXiaohongshu(
       console.log(`[${taskId}] Launching Playwright for XHS extraction...`);
       noteData = await extractViaPlaywright(url, taskId);
       if (noteData) {
-        console.log(`[${taskId}] Playwright extracted: title="${noteData.title}", images=${noteData.imageUrls.length}, isVideo=${noteData.isVideo}`);
+        console.log(
+          `[${taskId}] Playwright extracted: title="${noteData.title}", images=${noteData.imageUrls.length}, isVideo=${noteData.isVideo}`,
+        );
       } else {
         console.log(`[${taskId}] Playwright: no note data found`);
       }
     } catch (err) {
-      console.log(`[${taskId}] Playwright extraction failed: ${err instanceof Error ? err.message : err}`);
+      console.log(
+        `[${taskId}] Playwright extraction failed: ${err instanceof Error ? err.message : err}`,
+      );
     }
 
     if (noteData && (noteData.title || noteData.desc || noteData.imageUrls.length > 0)) {
@@ -419,13 +444,15 @@ export async function extractXiaohongshu(
             }
           }
         }
-        console.log(`[${taskId}] Downloaded ${resources.filter((r) => r.type === "image").length}/${noteData.imageUrls.length} images`);
+        console.log(
+          `[${taskId}] Downloaded ${resources.filter((r) => r.type === "image").length}/${noteData.imageUrls.length} images`,
+        );
       }
 
       // Handle video notes
       if (noteData.isVideo) {
         // Try direct video URL download first
-        if (noteData.videoUrl && noteData.videoUrl.startsWith("http")) {
+        if (noteData.videoUrl?.startsWith("http")) {
           try {
             console.log(`[${taskId}] Downloading video from direct URL...`);
             const buffer = await downloadImage(noteData.videoUrl); // reuse download fn
@@ -448,15 +475,22 @@ export async function extractXiaohongshu(
         // Fallback to yt-dlp for video if direct download didn't work
         if (!resources.some((r) => r.type === "video")) {
           try {
-            await exec("yt-dlp", [
-              "--cookies-from-browser", "chrome",
-              ...ytdlpProxyArgs(url),
-              "-f", "best",
-              "--write-thumbnail",
-              "--no-playlist",
-              "-o", "%(title).80s.%(ext)s",
-              url,
-            ], workDir);
+            await exec(
+              "yt-dlp",
+              [
+                "--cookies-from-browser",
+                "chrome",
+                ...ytdlpProxyArgs(url),
+                "-f",
+                "best",
+                "--write-thumbnail",
+                "--no-playlist",
+                "-o",
+                "%(title).80s.%(ext)s",
+                url,
+              ],
+              workDir,
+            );
 
             const files = await readdir(workDir);
             for (const file of files) {

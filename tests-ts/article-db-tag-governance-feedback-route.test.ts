@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/v1/tags/governance/feedback/route";
-import { appendTagGovernanceFeedback, listTagGovernanceFeedbackStats } from "@/lib/article-db/repository";
+import {
+  appendTagGovernanceFeedback,
+  listTagGovernanceFeedbackStats,
+} from "@/lib/article-db/repository";
 
 vi.mock("@/lib/article-db/repository", () => {
   return {
@@ -31,9 +34,12 @@ describe("article-db tag governance feedback route", () => {
     ]);
 
     const response = await GET(
-      new Request("https://example.com/api/v1/tags/governance/feedback?objective_id=default&days=30&limit=20", {
-        headers: { Authorization: "Bearer secret-token" },
-      }),
+      new Request(
+        "https://example.com/api/v1/tags/governance/feedback?objective_id=default&days=30&limit=20",
+        {
+          headers: { Authorization: "Bearer secret-token" },
+        },
+      ),
     );
     const payload = (await response.json()) as Record<string, unknown>;
 

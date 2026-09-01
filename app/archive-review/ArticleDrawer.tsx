@@ -1,7 +1,15 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import styles from "./page.module.css";
 
 function addNoReferrerToImages(html: string): string {
@@ -12,6 +20,8 @@ export interface ArticleContentData {
   title: string;
   content_full_html: string;
   content_full_text: string;
+  content_full_updated_at: string;
+  content_full_error: string;
   content_text: string;
   summary_raw: string;
   lead_paragraph: string;
@@ -78,7 +88,26 @@ export function ArticleDrawerProvider({
   }, [open]);
 
   const externalUrl = data ? data.info_url || data.original_url || data.canonical_url : "";
-  const sourceUrl = data && data.original_url && data.original_url !== externalUrl ? data.original_url : "";
+  const sourceUrl =
+    data?.original_url && data.original_url !== externalUrl ? data.original_url : "";
+
+  const metaBar = (() => {
+    if (!data) return null;
+    const hasArchiveContent = Boolean(data.content_full_html || data.content_full_text);
+    if (!hasArchiveContent || !data.content_full_updated_at) return null;
+    return (
+      <div className={styles.drawerMeta}>
+        存档内容 · 抓取于{" "}
+        {new Date(data.content_full_updated_at).toLocaleString("zh-CN", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </div>
+    );
+  })();
 
   const contentEl = (() => {
     if (pending || !data) {
@@ -92,13 +121,16 @@ export function ArticleDrawerProvider({
         />
       );
     }
-    const text = data.content_full_text || data.content_text || data.summary_raw || data.lead_paragraph;
+    const text =
+      data.content_full_text || data.content_text || data.summary_raw || data.lead_paragraph;
     if (text) {
       return <div className={styles.drawerText}>{text}</div>;
     }
     return (
       <p className={styles.drawerEmpty}>
-        完整内容暂不可用。
+        {data.content_full_error
+          ? `内容抓取失败：${data.content_full_error}`
+          : "完整内容暂不可用。"}
         {externalUrl ? (
           <>
             {" "}
@@ -146,6 +178,7 @@ export function ArticleDrawerProvider({
                 </button>
               </div>
             </div>
+            {metaBar}
             <div className={styles.drawerContent}>{contentEl}</div>
           </div>
         </>
@@ -154,21 +187,33 @@ export function ArticleDrawerProvider({
   );
 }
 
-export function ArticleTitle({
-  articleId,
-  children,
-}: {
-  articleId: string;
-  children: ReactNode;
-}) {
+export function ArticleTitle({ articleId, children }: { articleId: string; children: ReactNode }) {
   const openDrawer = useOpenDrawer();
   return (
-    <button
-      type="button"
-      className={styles.articleTitleBtn}
-      onClick={() => openDrawer(articleId)}
-    >
+    <button type="button" className={styles.articleTitleBtn} onClick={() => openDrawer(articleId)}>
       {children}
+    </button>
+  );
+}
+
+export function ArchiveButton({
+  articleId,
+  hasContent,
+  label = "查看存档",
+  disabledLabel = "无存档",
+}: {
+  articleId: string;
+  hasContent: boolean;
+  label?: string;
+  disabledLabel?: string;
+}) {
+  const openDrawer = useOpenDrawer();
+  if (!hasContent) {
+    return <span className={styles.archiveBtnDisabled}>{disabledLabel}</span>;
+  }
+  return (
+    <button type="button" className={styles.archiveBtn} onClick={() => openDrawer(articleId)}>
+      {label}
     </button>
   );
 }

@@ -36,7 +36,11 @@ function asNumber(value: unknown, fallback: number): number {
 export async function POST(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   try {
@@ -47,7 +51,9 @@ export async function POST(request: Request): Promise<Response> {
       lookbackDays: asNumber(body.lookback_days, 30),
       maxActions: asNumber(body.max_actions, 12),
       sampleLimit: asNumber(body.sample_limit, 800),
-      focusGroups: Array.isArray(body.focus_groups) ? body.focus_groups.map((item) => String(item || "")) : [],
+      focusGroups: Array.isArray(body.focus_groups)
+        ? body.focus_groups.map((item) => String(item || ""))
+        : [],
       extraContext: String(body.extra_context || "").trim(),
       candidateActions: body.candidate_actions,
     });
@@ -72,6 +78,10 @@ export async function POST(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

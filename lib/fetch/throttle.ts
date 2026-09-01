@@ -77,7 +77,8 @@ export class AdaptiveThrottle {
 
   /** Get current stats for logging/telemetry. */
   getStats(): Record<string, { multiplier: number; degraded: boolean; captchaHit: boolean }> {
-    const result: Record<string, { multiplier: number; degraded: boolean; captchaHit: boolean }> = {};
+    const result: Record<string, { multiplier: number; degraded: boolean; captchaHit: boolean }> =
+      {};
     for (const [domain, state] of this.domains) {
       result[domain] = {
         multiplier: Math.round(state.multiplier * 100) / 100,

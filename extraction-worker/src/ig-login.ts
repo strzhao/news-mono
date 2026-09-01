@@ -6,10 +6,10 @@
  *
  * Usage: npm run ig-login
  */
-import { chromium } from "playwright";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
+import { launchInteractiveChrome } from "./browser-runtime.js";
 
 const STATE_DIR = join(homedir(), ".instagram-session");
 const STATE_FILE = join(STATE_DIR, "state.json");
@@ -21,16 +21,11 @@ async function main() {
   console.log("Please log in to Instagram in the browser window.");
   console.log("The session will be saved automatically once you're logged in.\n");
 
-  const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || "";
-
-  const browser = await chromium.launch({
-    headless: false,
-    channel: "chrome",
-    ...(proxyUrl ? { proxy: { server: proxyUrl } } : {}),
-  });
+  const browser = await launchInteractiveChrome();
 
   const context = await browser.newContext({
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     locale: "en-US",
   });
 
@@ -56,9 +51,7 @@ async function main() {
     try {
       const cookies = await context.cookies("https://www.instagram.com");
       // Instagram sets sessionid cookie after login
-      const hasAuth = cookies.some(
-        (c) => c.name === "sessionid" || c.name === "ds_user_id",
-      );
+      const hasAuth = cookies.some((c) => c.name === "sessionid" || c.name === "ds_user_id");
       if (hasAuth && !saved) {
         console.log("Login detected! Saving session...");
         await saveState();

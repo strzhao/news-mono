@@ -1,8 +1,8 @@
 import { normalizeUrl } from "@/lib/domain/tracker-common";
 import { fetchViaBrowser } from "./browser-extract-client";
+import { classifyHttpStatus, extractDomain, FetchError } from "./errors";
 import { buildBrowserHeaders } from "./headers";
 import { retryWithBackoff } from "./retry";
-import { FetchError, classifyHttpStatus, extractDomain } from "./errors";
 
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_MAX_HTML_BYTES = 1_500_000;
@@ -162,7 +162,11 @@ function normalizeImageCandidate(raw: string): string {
   return firstToken.trim();
 }
 
-function collectMetaImages(html: string, baseUrl: string, maxImages: number): ArticleImageResource[] {
+function collectMetaImages(
+  html: string,
+  baseUrl: string,
+  maxImages: number,
+): ArticleImageResource[] {
   const result: ArticleImageResource[] = [];
   const metaRe = /<meta\b[^>]*>/gi;
   let match: RegExpExecArray | null = null;
@@ -278,7 +282,11 @@ export async function fetchArticleContent(
     );
 
     const contentType = String(response.headers.get("content-type") || "").toLowerCase();
-    if (contentType && !contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+    if (
+      contentType &&
+      !contentType.includes("text/html") &&
+      !contentType.includes("application/xhtml+xml")
+    ) {
       throw new FetchError(`Unsupported content-type: ${contentType}`, {
         code: "content_type_mismatch",
         domain: extractDomain(normalizedUrl),

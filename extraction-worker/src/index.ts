@@ -9,33 +9,50 @@
 // Usage:
 //   npm start              # run once (process all pending tasks, then exit)
 //   npm run dev            # watch mode with auto-reload
-//   npm run server         # start browser extract HTTP server only
+//   npm run server         # start browser extract HTTP server only (local debugging)
 //   npm run server-poll    # start HTTP server + continuous polling
 //
-// For continuous polling, use a cron job or process manager:
+// For long-running service mode, use PM2 with ecosystem.config.cjs.
+// Manual `npm run server` should not be used as the production process owner.
+// For one-off polling, use a cron job:
 //   crontab: every-5-min cd /path/to/extraction-worker && npm start
 
 import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 // Auto-detect system proxy and apply to Node.js fetch
-const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY;
+const proxyUrl =
+  process.env.https_proxy ||
+  process.env.HTTPS_PROXY ||
+  process.env.http_proxy ||
+  process.env.HTTP_PROXY;
 if (proxyUrl) {
   setGlobalDispatcher(new ProxyAgent(proxyUrl));
   console.log(`  Proxy: ${proxyUrl}`);
 }
 
-import { fetchPendingTasks, reportTaskComplete } from "./reporter.js";
-import { extractYouTube } from "./extractors/youtube.js";
+import { warnIfBackgroundBrowserMissing } from "./browser-runtime.js";
 import { extractBilibili } from "./extractors/bilibili.js";
-import { extractXiaohongshu } from "./extractors/xiaohongshu.js";
 import { extractInstagram } from "./extractors/instagram.js";
+import { extractXiaohongshu } from "./extractors/xiaohongshu.js";
+import { extractYouTube } from "./extractors/youtube.js";
+import { fetchPendingTasks, reportTaskComplete } from "./reporter.js";
 import { startServer } from "./server.js";
 
 const SERVER_MODE = process.argv.includes("--server");
 const POLL_MODE = process.argv.includes("--poll");
 const POLL_INTERVAL_MS = 30_000;
+const ARTICLE_DB_BASE_URL = process.env.ARTICLE_DB_BASE_URL || "";
+const ARTICLE_DB_FALLBACK_BASE_URLS = String(process.env.ARTICLE_DB_FALLBACK_BASE_URLS || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 
-async function processTask(task: { task_id: string; url: string; platform: string; blob_ttl_hours: number }): Promise<void> {
+async function processTask(task: {
+  task_id: string;
+  url: string;
+  platform: string;
+  blob_ttl_hours: number;
+}): Promise<void> {
   console.log(`[${task.task_id}] Processing ${task.platform}: ${task.url}`);
 
   try {
@@ -104,8 +121,12 @@ async function main(): Promise<void> {
   if (!modes.length) modes.push("single run");
 
   console.log("Extraction Worker started.");
-  console.log(`  ARTICLE_DB_BASE_URL: ${process.env.ARTICLE_DB_BASE_URL || "(not set)"}`);
+  console.log(`  ARTICLE_DB_BASE_URL: ${ARTICLE_DB_BASE_URL || "(not set)"}`);
+  if (ARTICLE_DB_FALLBACK_BASE_URLS.length) {
+    console.log(`  ARTICLE_DB_FALLBACK_BASE_URLS: ${ARTICLE_DB_FALLBACK_BASE_URLS.join(", ")}`);
+  }
   console.log(`  Mode: ${modes.join(" + ")}`);
+  await warnIfBackgroundBrowserMissing();
 
   // Start HTTP server if requested (does not block)
   if (SERVER_MODE) {
@@ -114,7 +135,7 @@ async function main(): Promise<void> {
 
   // Task polling requires ARTICLE_DB_BASE_URL
   if (POLL_MODE || !SERVER_MODE) {
-    if (!process.env.ARTICLE_DB_BASE_URL) {
+    if (!ARTICLE_DB_BASE_URL) {
       console.error("Error: ARTICLE_DB_BASE_URL is required for task polling.");
       if (!SERVER_MODE) process.exit(1);
       return;

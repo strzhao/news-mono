@@ -1,21 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { POST as postSent } from "@/app/api/v1/flomo/push-batches/[batch_key]/sent/route";
 import { POST as postFailed } from "@/app/api/v1/flomo/push-batches/[batch_key]/failed/route";
+import { POST as postSent } from "@/app/api/v1/flomo/push-batches/[batch_key]/sent/route";
 
-const {
-  markFlomoArchivePushBatchSentMock,
-  markFlomoArchivePushBatchFailedMock,
-} = vi.hoisted(() => {
-  return {
-    markFlomoArchivePushBatchSentMock: vi.fn(),
-    markFlomoArchivePushBatchFailedMock: vi.fn(),
-  };
-});
+const { markFlomoArchivePushBatchSentMock, markFlomoArchivePushBatchFailedMock } = vi.hoisted(
+  () => {
+    return {
+      markFlomoArchivePushBatchSentMock: vi.fn(),
+      markFlomoArchivePushBatchFailedMock: vi.fn(),
+    };
+  },
+);
 
 vi.mock("@/lib/article-db/repository", () => {
   return {
-    markFlomoArchivePushBatchSent: (...args: unknown[]) => markFlomoArchivePushBatchSentMock(...args),
-    markFlomoArchivePushBatchFailed: (...args: unknown[]) => markFlomoArchivePushBatchFailedMock(...args),
+    markFlomoArchivePushBatchSent: (...args: unknown[]) =>
+      markFlomoArchivePushBatchSentMock(...args),
+    markFlomoArchivePushBatchFailed: (...args: unknown[]) =>
+      markFlomoArchivePushBatchFailedMock(...args),
   };
 });
 

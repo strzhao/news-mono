@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GET as GET_OBJECTIVE, PUT as PUT_OBJECTIVE } from "@/app/api/v1/tags/governance/objective/route";
+import {
+  GET as GET_OBJECTIVE,
+  PUT as PUT_OBJECTIVE,
+} from "@/app/api/v1/tags/governance/objective/route";
 import { POST as POST_RUN } from "@/app/api/v1/tags/governance/run/route";
-import { getTagGovernanceObjective, upsertTagGovernanceObjective } from "@/lib/article-db/repository";
+import {
+  getTagGovernanceObjective,
+  upsertTagGovernanceObjective,
+} from "@/lib/article-db/repository";
 import { runTagGovernance } from "@/lib/article-db/tag-governance";
 
 vi.mock("@/lib/article-db/repository", () => {

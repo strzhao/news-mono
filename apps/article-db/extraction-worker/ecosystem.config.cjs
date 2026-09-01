@@ -25,7 +25,7 @@ module.exports = {
       script: "node_modules/.bin/tsx",
       // PM2 is the single supported owner for long-running polling + browser extraction.
       args: "--env-file=.env src/index.ts --server --poll",
-      cwd: "/Users/stringzhao/workspace/agi/live/article-db/extraction-worker",
+      cwd: "/Users/stringzhao/workspace/news-mono/apps/article-db/extraction-worker",
       interpreter: "none",
       env: {
         NODE_ENV: "production",

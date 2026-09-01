@@ -1,0 +1,42 @@
+name: Publish ai-news-cli to npm
+
+on:
+  push:
+    tags:
+      - "ai-news-cli-v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: npm
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Verify trusted publishing runtime
+        run: |
+          node --version
+          NPM_VERSION=$(npm --version)
+          echo "$NPM_VERSION"
+          node -e 'const version = process.argv[1]; const [major, minor, patch] = version.split(".").map(Number); const ok = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))); if (!ok) { console.error(`npm ${version} does not satisfy trusted publishing minimum 11.5.1`); process.exit(1); }' "$NPM_VERSION"
+      - name: Verify tag matches package.json version
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./packages/cli/package.json').version")
+          TAG_VERSION="${GITHUB_REF_NAME#ai-news-cli-v}"
+
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match packages/cli version ($PACKAGE_VERSION)"
+            exit 1
+          fi
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter ai-news-cli build
+      - name: Publish from packages/cli
+        run: |
+          cd packages/cli
+          npm publish --provenance --access public

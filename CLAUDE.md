@@ -39,15 +39,16 @@ pnpm --filter article-db dev
 
 ## cli 发版（低频）
 
-npm 上 `ai-news-cli` 的 trusted publisher 仍绑定旧仓 ai-news-cli 的 publish.yml。要在本仓发新版，需先人工在 npm 侧换绑（交互 2FA）：
+npm trusted publisher 已换绑至本仓（`publish-ai-news-cli.yml` + environment `npm`，2026-09-01）。发版流程：
 
 ```bash
-npx npm@11 trust list ai-news-cli      # 拿旧配置 ID
-npx npm@11 trust revoke ai-news-cli --id=<ID>
-npx npm@11 trust github ai-news-cli --file .github/workflows/publish-ai-news-cli.yml --repo strzhao/news-mono --env npm --allow-publish
+# 1. 改 packages/cli/package.json version
+pnpm --filter ai-news-cli exec npm version patch --no-git-tag-version
+git commit -am "chore(ai-news-cli): release v0.1.x"
+git tag ai-news-cli-v0.1.x && git push origin main ai-news-cli-v0.1.x
 ```
 
-之后 tag `ai-news-cli-v*` 触发主仓 publish workflow，版本号须与 `packages/cli/package.json` 一致。
+tag `ai-news-cli-v*` 触发 publish workflow，版本号须与 `packages/cli/package.json` 一致。注意：本仓为 public（npm provenance 要求公开源仓），新增内网地址/IP 时走 `${VAR}` 环境变量模板（见 sources.yaml 的 WEEWE_RSS_BASE_URL 先例）。
 
 ## 部署
 

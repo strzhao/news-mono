@@ -35,6 +35,10 @@ export async function GET(
 
     return jsonResponse(200, { ok: true, task }, true);
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

@@ -43,6 +43,9 @@
 
 - `ARTICLE_DB_API_TOKEN`
 - `CRON_SECRET`
+- `WECHAT_SOGOU_MAX_AGE_DAYS` (default `3`, WeChat only keeps report-day / recent 3-day articles; stale hits auto-fallback to RSS)
+- `INGESTION_WECHAT_RESERVED_EVAL_ARTICLES` (default `3`, reserve a few recent WeChat items into evaluation pool)
+- `INGESTION_WECHAT_RESERVED_MAX_AGE_DAYS` (default `3`, only reserve WeChat items within report-day / recent 3-day window)
 - `AUTH_ISSUER`
 - `AUTH_AUDIENCE`
 - `AUTH_JWKS_URL`

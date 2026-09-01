@@ -18,10 +18,18 @@ function boundedInt(raw: string, fallback: number, min: number, max: number): nu
 }
 
 function boolFlag(raw: string): boolean {
-  return ["1", "true", "yes", "on"].includes(String(raw || "").trim().toLowerCase());
+  return ["1", "true", "yes", "on"].includes(
+    String(raw || "")
+      .trim()
+      .toLowerCase(),
+  );
 }
 
 function isAuthorized(request: Request, url: URL): boolean | "pending_jwt" {
+  const vercelCron = String(request.headers.get("x-vercel-cron") || "").trim();
+  if (vercelCron) {
+    return true;
+  }
   const cronSecret = String(process.env.CRON_SECRET || "").trim();
   if (!cronSecret) {
     return true;
@@ -45,7 +53,9 @@ function detectTriggerType(request: Request): TriggerType {
   if (vercelCron) {
     return "cron";
   }
-  const userAgent = String(request.headers.get("user-agent") || "").trim().toLowerCase();
+  const userAgent = String(request.headers.get("user-agent") || "")
+    .trim()
+    .toLowerCase();
   if (userAgent.includes("vercel-cron")) {
     return "cron";
   }
@@ -60,7 +70,12 @@ function jitterDelayMs(request: Request, url: URL): { triggerType: TriggerType; 
   if (boolFlag(queryValue(url, "skip_jitter"))) {
     return { triggerType, delayMs: 0 };
   }
-  const jitterMaxSeconds = boundedInt(String(process.env.INGESTION_CRON_JITTER_MAX_SECONDS || "10"), 10, 0, 180);
+  const jitterMaxSeconds = boundedInt(
+    String(process.env.INGESTION_CRON_JITTER_MAX_SECONDS || "10"),
+    10,
+    0,
+    180,
+  );
   if (jitterMaxSeconds <= 0) {
     return { triggerType, delayMs: 0 };
   }
@@ -117,6 +132,10 @@ export async function GET(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

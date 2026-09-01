@@ -1,10 +1,5 @@
 import crypto from "node:crypto";
 import {
-  DigestArchiveSnapshot,
-  aggregateArchiveArticlesFromDigests,
-} from "@/lib/domain/archive-articles";
-import { getArchiveMarkdownMap, listArchives } from "@/lib/domain/archive-store";
-import {
   replaceDailyAnalyzed,
   replaceDailyHighQuality,
   upsertArticleAnalyses,
@@ -13,9 +8,24 @@ import {
   upsertDailyHighQuality,
   upsertSources,
 } from "@/lib/article-db/repository";
-import { Article, ArticleAssessment, SourceConfig, WORTH_WORTH_READING } from "@/lib/domain/models";
+import {
+  aggregateArchiveArticlesFromDigests,
+  type DigestArchiveSnapshot,
+} from "@/lib/domain/archive-articles";
+import { getArchiveMarkdownMap, listArchives } from "@/lib/domain/archive-store";
+import {
+  type Article,
+  type ArticleAssessment,
+  type SourceConfig,
+  WORTH_WORTH_READING,
+} from "@/lib/domain/models";
 
-function boundedInt(raw: string | number | undefined, fallback: number, min: number, max: number): number {
+function boundedInt(
+  raw: string | number | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
   const parsed = Number.parseInt(String(raw ?? fallback), 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(parsed, max));
@@ -38,7 +48,9 @@ function sourceHostFromUrl(rawUrl: string): string {
 }
 
 function legacySourceId(host: string): string {
-  const normalized = String(host || "legacy-unknown").trim().toLowerCase();
+  const normalized = String(host || "legacy-unknown")
+    .trim()
+    .toLowerCase();
   return `legacy_${crypto.createHash("sha256").update(normalized).digest("hex").slice(0, 12)}`;
 }
 
@@ -62,7 +74,10 @@ function rankScore(index: number, quality: number): number {
   return Number((1000000 - index * 1000 + quality).toFixed(4));
 }
 
-async function loadLegacyDigests(days: number, limitPerDay: number): Promise<DigestArchiveSnapshot[]> {
+async function loadLegacyDigests(
+  days: number,
+  limitPerDay: number,
+): Promise<DigestArchiveSnapshot[]> {
   const archiveGroups = await listArchives(days, limitPerDay);
   if (!archiveGroups.length) return [];
 
@@ -121,7 +136,9 @@ export interface LegacyImportResult {
   message: string;
 }
 
-export async function runLegacyImport(options: LegacyImportOptions = {}): Promise<LegacyImportResult> {
+export async function runLegacyImport(
+  options: LegacyImportOptions = {},
+): Promise<LegacyImportResult> {
   const days = boundedInt(options.days, 30, 1, 180);
   const limitPerDay = boundedInt(options.limitPerDay, 10, 1, 50);
   const articleLimitPerDay = boundedInt(options.articleLimitPerDay, 1000, 1, 5000);
@@ -268,8 +285,13 @@ export async function runLegacyImport(options: LegacyImportOptions = {}): Promis
           rankScore: rankScore(index, row.quality),
         };
       })
-      .filter((item): item is { articleId: string; qualityScoreSnapshot: number; rankScore: number } => Boolean(item));
-    const highQualityRows = analyzedRows.filter((row) => Number(row.qualityScoreSnapshot || 0) >= highQualityThreshold);
+      .filter(
+        (item): item is { articleId: string; qualityScoreSnapshot: number; rankScore: number } =>
+          Boolean(item),
+      );
+    const highQualityRows = analyzedRows.filter(
+      (row) => Number(row.qualityScoreSnapshot || 0) >= highQualityThreshold,
+    );
 
     if (overwrite) {
       await replaceDailyHighQuality(date, highQualityRows);

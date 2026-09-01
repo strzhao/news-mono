@@ -35,7 +35,8 @@ const TABLES = [
 ];
 
 function usage() {
-  console.log(`
+  console.log(
+    `
 Usage:
   node scripts/migrate-independent-neon.mjs bootstrap [--target <url>] [--env-file .env.local]
   node scripts/migrate-independent-neon.mjs copy [--source <url>] --target <url> [--truncate-target] [--chunk-size 250]
@@ -51,7 +52,8 @@ Examples:
   TARGET_DATABASE_URL='postgresql://...' npm run db:bootstrap
   SOURCE_DATABASE_URL='postgresql://old...' TARGET_DATABASE_URL='postgresql://new...' npm run db:clone -- --truncate-target
   SOURCE_DATABASE_URL='postgresql://old...' TARGET_DATABASE_URL='postgresql://new...' npm run db:verify
-`.trim());
+`.trim(),
+  );
 }
 
 function appendOption(target, key, value) {
@@ -150,7 +152,9 @@ function loadEnvFiles(parsed) {
   const explicitFiles = optionValues(parsed, "env-file");
   const envFiles = explicitFiles.length
     ? explicitFiles
-    : DEFAULT_ENV_FILES.map((file) => path.join(PROJECT_ROOT, file)).filter((file) => fs.existsSync(file));
+    : DEFAULT_ENV_FILES.map((file) => path.join(PROJECT_ROOT, file)).filter((file) =>
+        fs.existsSync(file),
+      );
 
   for (const envFile of envFiles) {
     dotenv.config({ path: envFile, override: false });
@@ -241,7 +245,9 @@ async function resolveColumnPlan(sourcePool, targetPool, table) {
 
   const insertColumns = targetColumns.filter((column) => sourceColumnNames.includes(column.name));
   const insertColumnNames = insertColumns.map((column) => column.name);
-  const missingPrimaryKeys = table.primaryKeys.filter((column) => !insertColumnNames.includes(column));
+  const missingPrimaryKeys = table.primaryKeys.filter(
+    (column) => !insertColumnNames.includes(column),
+  );
   if (missingPrimaryKeys.length) {
     throw new Error(
       `Target table ${table.name} is missing primary key columns: ${missingPrimaryKeys.join(", ")}`,
@@ -431,7 +437,9 @@ async function verifyTables(sourcePool, targetPool, tables) {
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
-  const command = String(parsed._[0] || "help").trim().toLowerCase();
+  const command = String(parsed._[0] || "help")
+    .trim()
+    .toLowerCase();
 
   if (command === "help" || command === "--help" || command === "-h") {
     usage();

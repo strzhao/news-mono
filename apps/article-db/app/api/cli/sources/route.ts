@@ -15,13 +15,29 @@ export async function GET(request: Request): Promise<Response> {
     const sanitized = sources.map((s) => ({
       id: s.id,
       name: s.name,
+      url: s.url,
       source_type: s.sourceType,
       source_weight: s.sourceWeight,
       only_external_links: s.onlyExternalLinks,
+      fetch_method: s.fetchMethod ?? "rss",
+      fallback_fetch_method: s.fallbackFetchMethod ?? null,
+      wechat_sogou_query: s.wechatSogouQuery ?? null,
+      wechat_sogou_author: s.wechatSogouAuthor ?? null,
     }));
 
-    return jsonResponse(200, { ok: true, count: sanitized.length, sources: sanitized } as unknown as Record<string, unknown>, true);
+    return jsonResponse(
+      200,
+      { ok: true, count: sanitized.length, sources: sanitized } as unknown as Record<
+        string,
+        unknown
+      >,
+      true,
+    );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

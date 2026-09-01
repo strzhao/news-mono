@@ -1,8 +1,14 @@
 import crypto from "node:crypto";
 import Parser from "rss-parser";
-import { Article, SourceConfig } from "@/lib/domain/models";
-import { gaussianJitter } from "./timing";
+import {
+  currentDateInTimezone,
+  getWechatFreshnessMaxAgeDays,
+  isPublishedWithinReportWindow,
+} from "@/lib/domain/article-identity";
+import type { Article, SourceConfig } from "@/lib/domain/models";
 import { retryWithBackoff } from "./retry";
+import { gaussianJitter } from "./timing";
+import { fetchWechatSogouArticles, shouldUseWechatSogou } from "./wechat-sogou-fetcher";
 
 const TAG_RE = /<[^>]+>/g;
 const MULTISPACE_RE = /\s+/g;
@@ -23,7 +29,10 @@ const parser = new Parser({
   },
 });
 
-async function fetchFeedWithTimeout(feedUrl: string, timeoutMs: number): Promise<Parser.Output<Parser.Item>> {
+async function fetchFeedWithTimeout(
+  feedUrl: string,
+  timeoutMs: number,
+): Promise<Parser.Output<Parser.Item>> {
   return retryWithBackoff(
     async () => {
       const controller = new AbortController();
@@ -80,7 +89,9 @@ function extractLeadParagraph(item: Parser.Item): string {
     return summary.slice(0, 280).trim();
   }
 
-  return cleanHtmlText(String(item.title || "")).slice(0, 280).trim();
+  return cleanHtmlText(String(item.title || ""))
+    .slice(0, 280)
+    .trim();
 }
 
 function parsePublishedAt(item: Parser.Item, fallbackToNow = false): Date | null {
@@ -96,13 +107,23 @@ function parsePublishedAt(item: Parser.Item, fallbackToNow = false): Date | null
 }
 
 function makeArticleId(sourceId: string, url: string, title: string): string {
-  const digest = crypto.createHash("sha256").update(`${sourceId}|${url}|${title}`).digest("hex").slice(0, 12);
+  const digest = crypto
+    .createHash("sha256")
+    .update(`${sourceId}|${url}|${title}`)
+    .digest("hex")
+    .slice(0, 12);
   return `${sourceId}-${digest}`;
 }
 
 function collectEntryCandidateLinks(item: Parser.Item): string[] {
   const blocks: string[] = [];
-  [item.summary, item.contentSnippet, item.content, (item as any).description, (item as any)["content:encoded"]].forEach((value) => {
+  [
+    item.summary,
+    item.contentSnippet,
+    item.content,
+    (item as any).description,
+    (item as any)["content:encoded"],
+  ].forEach((value) => {
     if (typeof value === "string" && value.trim()) {
       blocks.push(value);
     }
@@ -121,7 +142,8 @@ function collectEntryCandidateLinks(item: Parser.Item): string[] {
   return links;
 }
 
-const MEDIA_EXT_RE = /\.(?:jpe?g|png|gif|webp|svg|ico|bmp|avif|mp4|mp3|wav|ogg|webm|pdf)(?:[?#]|$)/i;
+const MEDIA_EXT_RE =
+  /\.(?:jpe?g|png|gif|webp|svg|ico|bmp|avif|mp4|mp3|wav|ogg|webm|pdf)(?:[?#]|$)/i;
 
 function isMediaUrl(value: string): boolean {
   try {
@@ -139,7 +161,8 @@ function isExternalLink(value: string): boolean {
     if (!host) return false;
     if (host === "t.co") return true;
     if (X_INTERNAL_HOSTS.has(host)) return false;
-    if (host.endsWith(".twitter.com") || host.endsWith(".x.com") || host.endsWith(".twimg.com")) return false;
+    if (host.endsWith(".twitter.com") || host.endsWith(".x.com") || host.endsWith(".twimg.com"))
+      return false;
     return true;
   } catch {
     return false;
@@ -178,15 +201,28 @@ export async function fetchArticles(
     maxPerSource?: number;
     perSourceLimits?: Record<string, number>;
     totalBudget?: number;
+    reportDate?: string;
+    timezoneName?: string;
   } = {},
 ): Promise<FetchResult> {
   const timeoutSeconds = options.timeoutSeconds ?? 20;
   const timeoutMs = Math.max(1_000, Math.trunc(timeoutSeconds * 1_000));
-  const totalTimeoutMs = Math.max(timeoutMs, Math.trunc((options.totalTimeoutSeconds ?? 120) * 1_000));
+  const totalTimeoutMs = Math.max(
+    timeoutMs,
+    Math.trunc((options.totalTimeoutSeconds ?? 120) * 1_000),
+  );
   const concurrency = Math.max(1, Math.min(12, Math.trunc(options.concurrency ?? 4)));
   const maxPerSource = options.maxPerSource ?? 25;
   const perSourceLimits = options.perSourceLimits || {};
   const totalBudget = options.totalBudget ?? 0;
+  const timezoneName =
+    String(options.timezoneName || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() ||
+    "Asia/Shanghai";
+  const referenceDate =
+    String(options.reportDate || "").trim() || currentDateInTimezone(timezoneName);
+  const wechatMaxAgeDays = getWechatFreshnessMaxAgeDays(
+    String(process.env.WECHAT_SOGOU_MAX_AGE_DAYS || ""),
+  );
 
   const articles: Article[] = [];
   const sourceStats: Record<string, SourceFetchStat> = {};
@@ -212,8 +248,32 @@ export async function fetchArticles(
       let sourceFetched = 0;
       try {
         const remainingMs = Math.max(1_000, deadline - Date.now());
-        const feed = await fetchFeedWithTimeout(source.url, Math.min(timeoutMs, remainingMs));
         const perSourceCap = Math.trunc(perSourceLimits[source.id] ?? maxPerSource);
+        if (shouldUseWechatSogou(source)) {
+          try {
+            const htmlArticles = await fetchWechatSogouArticles(source, {
+              timeoutMs: Math.min(timeoutMs, remainingMs),
+              maxItems: perSourceCap,
+              referenceDate,
+              timezoneName,
+            });
+            if (htmlArticles.length || source.fallbackFetchMethod !== "rss") {
+              articles.push(...htmlArticles);
+              sourceFetched = htmlArticles.length;
+              sourceStats[source.id] = { fetched: sourceFetched };
+              if (timeoutSeconds > 0) {
+                await gaussianJitter(200, 80);
+              }
+              continue;
+            }
+          } catch (error) {
+            if (source.fallbackFetchMethod !== "rss") {
+              throw error;
+            }
+          }
+        }
+
+        const feed = await fetchFeedWithTimeout(source.url, Math.min(timeoutMs, remainingMs));
         const entries = (feed.items || []).slice(0, Math.max(0, perSourceCap));
 
         for (const entry of entries) {
@@ -231,7 +291,19 @@ export async function fetchArticles(
 
           const title = cleanHtmlText(String(entry.title || ""));
           const url = String(entry.link || "").trim();
+          const publishedAt = parsePublishedAt(entry, source.sourceType !== "wechat");
           if (!title || !url) {
+            continue;
+          }
+          if (
+            source.sourceType === "wechat" &&
+            !isPublishedWithinReportWindow(
+              publishedAt,
+              referenceDate,
+              wechatMaxAgeDays,
+              timezoneName,
+            )
+          ) {
             continue;
           }
 
@@ -246,7 +318,7 @@ export async function fetchArticles(
             sourceId: source.id,
             sourceName: source.name,
             sourceType: source.sourceType || "rss",
-            publishedAt: parsePublishedAt(entry, true),
+            publishedAt,
             summaryRaw: summary,
             leadParagraph: lead,
             contentText,
@@ -272,7 +344,9 @@ export async function fetchArticles(
     }
   }
 
-  await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, sources.length)) }, () => worker()));
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, Math.max(1, sources.length)) }, () => worker()),
+  );
 
   return { articles, sourceStats };
 }

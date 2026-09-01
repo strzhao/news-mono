@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.11/schema.json",
   "linter": {
     "enabled": true,
     "rules": {
@@ -60,7 +60,8 @@
       "!!coverage",
       "!!test-results",
       "!!playwright-report",
-      "!!blob-report"
+      "!!blob-report",
+      "!!.vercel"
     ]
   }
 }

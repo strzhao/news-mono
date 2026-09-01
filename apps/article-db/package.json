@@ -1,6 +1,6 @@
 {
   "name": "article-db",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,10 @@
     "test:watch": "vitest",
     "db:bootstrap": "node scripts/migrate-independent-neon.mjs bootstrap",
     "db:clone": "node scripts/migrate-independent-neon.mjs copy",
-    "db:verify": "node scripts/migrate-independent-neon.mjs verify"
+    "db:verify": "node scripts/migrate-independent-neon.mjs verify",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "format": "biome format --write ."
   },
   "dependencies": {
     "@types/pg": "^8.18.0",

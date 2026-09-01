@@ -1,4 +1,8 @@
-import type { ExtractionTask, ExtractedResource, ExtractionMetadata } from "@/lib/domain/url-extraction-models";
+import type {
+  ExtractedResource,
+  ExtractionMetadata,
+  ExtractionTask,
+} from "@/lib/domain/url-extraction-models";
 import type { UpstashClient } from "./upstash";
 
 const TASK_KEY_PREFIX = "extraction:task:";
@@ -14,7 +18,10 @@ function userTasksKey(userId: string): string {
   return `${USER_TASKS_PREFIX}${userId}`;
 }
 
-export async function enqueueExtractionTask(redis: UpstashClient, task: ExtractionTask): Promise<void> {
+export async function enqueueExtractionTask(
+  redis: UpstashClient,
+  task: ExtractionTask,
+): Promise<void> {
   const serialized: Record<string, string> = {
     task_id: task.task_id,
     url: task.url,
@@ -65,7 +72,11 @@ export async function saveCompletedTask(redis: UpstashClient, task: ExtractionTa
 }
 
 /** List all tasks for a user, newest first. */
-export async function listUserTasks(redis: UpstashClient, userId: string, limit = 50): Promise<ExtractionTask[]> {
+export async function listUserTasks(
+  redis: UpstashClient,
+  userId: string,
+  limit = 50,
+): Promise<ExtractionTask[]> {
   const taskIds = await redis.zrevrange(userTasksKey(userId), 0, limit - 1);
   if (!taskIds.length) return [];
 
@@ -77,9 +88,12 @@ export async function listUserTasks(redis: UpstashClient, userId: string, limit 
   return tasks;
 }
 
-export async function getExtractionTask(redis: UpstashClient, taskId: string): Promise<ExtractionTask | null> {
+export async function getExtractionTask(
+  redis: UpstashClient,
+  taskId: string,
+): Promise<ExtractionTask | null> {
   const raw = await redis.hgetall(taskKey(taskId));
-  if (!raw || !raw.task_id) {
+  if (!raw?.task_id) {
     return null;
   }
   return deserializeTask(raw);

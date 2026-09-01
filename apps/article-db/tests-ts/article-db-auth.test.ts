@@ -1,6 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { authenticateAccessToken, authenticateArticleDbRequest, requireArticleDbAuth } from "@/lib/article-db/auth";
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  authenticateAccessToken,
+  authenticateArticleDbRequest,
+  requireArticleDbAuth,
+} from "@/lib/article-db/auth";
 
 vi.mock("jose", () => {
   return {
@@ -23,7 +27,9 @@ describe("article-db auth", () => {
   });
 
   it("allows requests when auth is fully unconfigured", async () => {
-    const result = await authenticateArticleDbRequest(new Request("https://example.com/api/v1/articles/high-quality"));
+    const result = await authenticateArticleDbRequest(
+      new Request("https://example.com/api/v1/articles/high-quality"),
+    );
 
     expect(result.ok).toBe(true);
     expect(result.mode).toBe("none");
@@ -77,7 +83,9 @@ describe("article-db auth", () => {
     process.env.AUTH_AUDIENCE = "base-account-client";
     process.env.AUTH_JWKS_URL = "https://user.stringzhao.life/.well-known/jwks.json";
 
-    const unauthorized = await requireArticleDbAuth(new Request("https://example.com/api/v1/articles/high-quality"));
+    const unauthorized = await requireArticleDbAuth(
+      new Request("https://example.com/api/v1/articles/high-quality"),
+    );
     expect(unauthorized?.status).toBe(401);
     expect(unauthorized?.error).toBe("missing_access_token");
   });

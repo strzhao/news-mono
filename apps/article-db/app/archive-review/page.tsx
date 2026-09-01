@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buildAiEvalObservabilitySnapshot } from "@/lib/article-db/ai-observability";
 import { authBridgeEnabled } from "@/lib/article-db/auth";
@@ -21,10 +21,10 @@ import {
   recordArticleQualityFeedback,
 } from "@/lib/article-db/repository";
 import type { ArticleContentData } from "./ArticleDrawer";
-import DashboardTab from "./DashboardTab";
 import ArticlesTab from "./ArticlesTab";
-import { pickString, dateShift, clampInt, normalizeQualityTier, type SearchParams } from "./shared";
+import DashboardTab from "./DashboardTab";
 import styles from "./page.module.css";
+import { clampInt, dateShift, normalizeQualityTier, pickString, type SearchParams } from "./shared";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -35,8 +35,11 @@ async function submitQualityFeedback(formData: FormData): Promise<void> {
   "use server";
 
   const articleId = String(formData.get("article_id") || "").trim();
-  const feedback = String(formData.get("feedback") || "").trim().toLowerCase();
-  const returnTo = String(formData.get("return_to") || "/archive-review").trim() || "/archive-review";
+  const feedback = String(formData.get("feedback") || "")
+    .trim()
+    .toLowerCase();
+  const returnTo =
+    String(formData.get("return_to") || "/archive-review").trim() || "/archive-review";
   if (!articleId || !["good", "bad"].includes(feedback)) {
     return;
   }
@@ -63,6 +66,8 @@ async function fetchArticleContent(articleId: string): Promise<ArticleContentDat
     title: detail.title,
     content_full_html: detail.content_full_html,
     content_full_text: detail.content_full_text,
+    content_full_updated_at: detail.content_full_updated_at,
+    content_full_error: detail.content_full_error,
     content_text: detail.content_text,
     summary_raw: detail.summary_raw,
     lead_paragraph: detail.lead_paragraph,
@@ -84,7 +89,9 @@ export default async function ArchiveReviewPage(props: {
       nextQuery.set(key, normalized);
     }
   });
-  const nextPath = nextQuery.toString() ? `/archive-review?${nextQuery.toString()}` : "/archive-review";
+  const nextPath = nextQuery.toString()
+    ? `/archive-review?${nextQuery.toString()}`
+    : "/archive-review";
 
   if (authBridgeEnabled()) {
     const cookieStore = await cookies();
@@ -97,7 +104,8 @@ export default async function ArchiveReviewPage(props: {
 
   // Parse params
   const activeTab = pickString(resolvedSearchParams.tab) === "articles" ? "articles" : "dashboard";
-  const timezoneName = String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+  const timezoneName =
+    String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
   const from = pickString(resolvedSearchParams.from) || dateShift(29, timezoneName);
   const to = pickString(resolvedSearchParams.to) || dateShift(0, timezoneName);
   const q = pickString(resolvedSearchParams.q).slice(0, 160);
@@ -112,39 +120,47 @@ export default async function ArchiveReviewPage(props: {
   const normalizedTo = from <= to ? to : from;
 
   // Conditional data fetching based on active tab
-  const [result, recentRuns, sources, channelStats, channelAnalytics, sourceStats, dailyTrend, typeStats] =
-    await Promise.all([
-      activeTab === "articles"
-        ? listArchivedArticles({
-            fromDate: normalizedFrom,
-            toDate: normalizedTo,
-            limit,
-            offset,
-            qualityTier,
-            search: q || undefined,
-            sourceId: sourceId || undefined,
-            sourceChannel: sourceChannel || undefined,
-            primaryType: primaryType || undefined,
-          })
-        : Promise.resolve({ items: [], total: 0 }),
-      activeTab === "dashboard"
-        ? listRecentIngestionRuns({ days: 2, limit: 24 })
-        : Promise.resolve([]),
-      listActiveSources(),
-      activeTab === "dashboard"
-        ? getArchiveStatsByChannel(normalizedFrom, normalizedTo)
-        : Promise.resolve([]),
-      activeTab === "dashboard"
-        ? getChannelAnalytics(normalizedFrom, normalizedTo)
-        : Promise.resolve([]),
-      activeTab === "dashboard"
-        ? getArchiveStatsBySource(normalizedFrom, normalizedTo)
-        : Promise.resolve([]),
-      activeTab === "dashboard"
-        ? getArchiveDailyTrend(normalizedFrom, normalizedTo)
-        : Promise.resolve([]),
-      getArchiveStatsByPrimaryType(normalizedFrom, normalizedTo),
-    ]);
+  const [
+    result,
+    recentRuns,
+    sources,
+    channelStats,
+    channelAnalytics,
+    sourceStats,
+    dailyTrend,
+    typeStats,
+  ] = await Promise.all([
+    activeTab === "articles"
+      ? listArchivedArticles({
+          fromDate: normalizedFrom,
+          toDate: normalizedTo,
+          limit,
+          offset,
+          qualityTier,
+          search: q || undefined,
+          sourceId: sourceId || undefined,
+          sourceChannel: sourceChannel || undefined,
+          primaryType: primaryType || undefined,
+        })
+      : Promise.resolve({ items: [], total: 0 }),
+    activeTab === "dashboard"
+      ? listRecentIngestionRuns({ days: 2, limit: 24 })
+      : Promise.resolve([]),
+    listActiveSources(),
+    activeTab === "dashboard"
+      ? getArchiveStatsByChannel(normalizedFrom, normalizedTo)
+      : Promise.resolve([]),
+    activeTab === "dashboard"
+      ? getChannelAnalytics(normalizedFrom, normalizedTo)
+      : Promise.resolve([]),
+    activeTab === "dashboard"
+      ? getArchiveStatsBySource(normalizedFrom, normalizedTo)
+      : Promise.resolve([]),
+    activeTab === "dashboard"
+      ? getArchiveDailyTrend(normalizedFrom, normalizedTo)
+      : Promise.resolve([]),
+    getArchiveStatsByPrimaryType(normalizedFrom, normalizedTo),
+  ]);
 
   const aiObs = activeTab === "dashboard" ? buildAiEvalObservabilitySnapshot(recentRuns) : null;
 
@@ -158,7 +174,9 @@ export default async function ArchiveReviewPage(props: {
       <header className={styles.headerCompact}>
         <div className={styles.headerLeft}>
           <h1 className={styles.headerTitle}>归档审查台</h1>
-          <span className={styles.headerMeta}>{normalizedFrom} ~ {normalizedTo}</span>
+          <span className={styles.headerMeta}>
+            {normalizedFrom} ~ {normalizedTo}
+          </span>
         </div>
         <Link href="/" className={styles.homeLink}>
           返回首页
@@ -173,10 +191,7 @@ export default async function ArchiveReviewPage(props: {
         >
           统计看板
         </a>
-        <a
-          href={articlesHref}
-          className={activeTab === "articles" ? styles.tabActive : styles.tab}
-        >
+        <a href={articlesHref} className={activeTab === "articles" ? styles.tabActive : styles.tab}>
           文章列表
         </a>
       </nav>

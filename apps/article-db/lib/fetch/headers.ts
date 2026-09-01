@@ -48,7 +48,8 @@ export function buildBrowserHeaders(): Record<string, string> {
   const p = sessionProfile;
   return {
     "User-Agent": p.ua,
-    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    Accept:
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
     "Accept-Encoding": "gzip, deflate, br",
     "sec-ch-ua": p.secChUa,

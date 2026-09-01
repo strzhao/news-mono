@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearArticleImageCache, extractFirstImageUrlFromHtml, resolveFirstImageUrl } from "@/lib/domain/article-image";
+import {
+  clearArticleImageCache,
+  extractFirstImageUrlFromHtml,
+  resolveFirstImageUrl,
+} from "@/lib/domain/article-image";
 
 describe("article image", () => {
   beforeEach(() => {
@@ -22,16 +26,23 @@ describe("article image", () => {
     const twitterHtml = '<meta name="twitter:image" content="https://img.example.com/tw.png">';
     const imgHtml = '<div><img src="/first.png"><img src="/second.png"></div>';
 
-    expect(extractFirstImageUrlFromHtml(twitterHtml, "https://example.com/a")).toBe("https://img.example.com/tw.png");
-    expect(extractFirstImageUrlFromHtml(imgHtml, "https://example.com/a")).toBe("https://example.com/first.png");
+    expect(extractFirstImageUrlFromHtml(twitterHtml, "https://example.com/a")).toBe(
+      "https://img.example.com/tw.png",
+    );
+    expect(extractFirstImageUrlFromHtml(imgHtml, "https://example.com/a")).toBe(
+      "https://example.com/first.png",
+    );
   });
 
   it("resolveFirstImageUrl caches result", async () => {
     const fetchImpl = vi.fn(async () => {
-      return new Response('<meta property="og:image" content="https://cdn.example.com/cover.webp">', {
-        status: 200,
-        headers: { "content-type": "text/html" },
-      });
+      return new Response(
+        '<meta property="og:image" content="https://cdn.example.com/cover.webp">',
+        {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        },
+      );
     });
 
     const url = "https://example.com/post";

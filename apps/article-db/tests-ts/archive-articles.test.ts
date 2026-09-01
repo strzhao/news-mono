@@ -121,16 +121,19 @@ describe("archive articles", () => {
       "",
     ].join("\n");
 
-    const result = aggregateArchiveArticlesFromDigests([
+    const result = aggregateArchiveArticlesFromDigests(
+      [
+        {
+          digest_id: "d_1",
+          date: "2026-02-28",
+          generated_at: "2026-02-28T09:00:00.000Z",
+          markdown,
+        },
+      ],
       {
-        digest_id: "d_1",
-        date: "2026-02-28",
-        generated_at: "2026-02-28T09:00:00.000Z",
-        markdown,
+        articleLimitPerDay: 0,
       },
-    ], {
-      articleLimitPerDay: 0,
-    });
+    );
 
     expect(result.totalArticles).toBe(3);
     expect(result.groups).toHaveLength(1);

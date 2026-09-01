@@ -9,8 +9,14 @@ export class ConsumptionClient {
 
   private readonly timeoutMs: number;
 
-  constructor(baseUrl = process.env.TRACKER_BASE_URL || "", apiToken = process.env.TRACKER_API_TOKEN || "", timeoutMs = 10_000) {
-    this.baseUrl = String(baseUrl || "").trim().replace(/\/$/, "");
+  constructor(
+    baseUrl = process.env.TRACKER_BASE_URL || "",
+    apiToken = process.env.TRACKER_API_TOKEN || "",
+    timeoutMs = 10_000,
+  ) {
+    this.baseUrl = String(baseUrl || "")
+      .trim()
+      .replace(/\/$/, "");
     this.apiToken = String(apiToken || "").trim();
     this.timeoutMs = timeoutMs;
   }
@@ -32,7 +38,9 @@ export class ConsumptionClient {
         timeoutMs: this.timeoutMs,
       });
     } catch (error) {
-      throw new ConsumptionClientError(`Failed to fetch source stats: ${error instanceof Error ? error.message : String(error)}`);
+      throw new ConsumptionClientError(
+        `Failed to fetch source stats: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     return this.parseSourceDailyPayload(payload);
   }
@@ -50,7 +58,9 @@ export class ConsumptionClient {
         timeoutMs: this.timeoutMs,
       });
     } catch (error) {
-      throw new ConsumptionClientError(`Failed to fetch type stats: ${error instanceof Error ? error.message : String(error)}`);
+      throw new ConsumptionClientError(
+        `Failed to fetch type stats: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     return this.parseTypeDailyPayload(payload);
   }
@@ -104,7 +114,9 @@ export class ConsumptionClient {
   }
 }
 
-export async function loadSourceDailyClicks(days = 90): Promise<Record<string, Record<string, number>>> {
+export async function loadSourceDailyClicks(
+  days = 90,
+): Promise<Record<string, Record<string, number>>> {
   const client = new ConsumptionClient();
   if (!client.enabled()) {
     return {};
@@ -112,7 +124,9 @@ export async function loadSourceDailyClicks(days = 90): Promise<Record<string, R
   return client.fetchSourceDailyClicks(days);
 }
 
-export async function loadTypeDailyClicks(days = 90): Promise<Record<string, Record<string, number>>> {
+export async function loadTypeDailyClicks(
+  days = 90,
+): Promise<Record<string, Record<string, number>>> {
   const client = new ConsumptionClient();
   if (!client.enabled()) {
     return {};

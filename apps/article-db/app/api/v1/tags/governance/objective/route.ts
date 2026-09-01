@@ -1,5 +1,8 @@
 import { requireArticleDbAuth } from "@/lib/article-db/auth";
-import { getTagGovernanceObjective, upsertTagGovernanceObjective } from "@/lib/article-db/repository";
+import {
+  getTagGovernanceObjective,
+  upsertTagGovernanceObjective,
+} from "@/lib/article-db/repository";
 import { jsonResponse } from "@/lib/infra/route-utils";
 
 export const runtime = "nodejs";
@@ -10,7 +13,9 @@ function objectiveIdFromUrl(url: URL): string {
   return String(url.searchParams.get("objective_id") || "default").trim() || "default";
 }
 
-async function parseBody(request: Request): Promise<{ objective_id?: string; config?: Record<string, unknown> }> {
+async function parseBody(
+  request: Request,
+): Promise<{ objective_id?: string; config?: Record<string, unknown> }> {
   try {
     const raw = (await request.json()) as Record<string, unknown>;
     if (!raw || typeof raw !== "object") return {};
@@ -32,7 +37,11 @@ async function parseBody(request: Request): Promise<{ objective_id?: string; con
 export async function GET(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
   try {
     const url = new URL(request.url);
@@ -50,14 +59,22 @@ export async function GET(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }
 
 export async function PUT(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
   try {
     const body = await parseBody(request);
@@ -80,6 +97,10 @@ export async function PUT(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(400, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      400,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

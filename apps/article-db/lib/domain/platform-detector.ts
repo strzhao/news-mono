@@ -1,9 +1,15 @@
 import type { ExtractionPlatform } from "./url-extraction-models";
 
 const PLATFORM_RULES: Array<{ hosts: string[]; platform: ExtractionPlatform }> = [
-  { hosts: ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "music.youtube.com"], platform: "youtube" },
+  {
+    hosts: ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "music.youtube.com"],
+    platform: "youtube",
+  },
   { hosts: ["bilibili.com", "www.bilibili.com", "m.bilibili.com", "b23.tv"], platform: "bilibili" },
-  { hosts: ["twitter.com", "www.twitter.com", "x.com", "www.x.com", "mobile.twitter.com"], platform: "twitter" },
+  {
+    hosts: ["twitter.com", "www.twitter.com", "x.com", "www.x.com", "mobile.twitter.com"],
+    platform: "twitter",
+  },
   { hosts: ["xiaohongshu.com", "www.xiaohongshu.com", "xhslink.com"], platform: "xiaohongshu" },
   { hosts: ["instagram.com", "www.instagram.com"], platform: "instagram" },
   { hosts: ["mp.weixin.qq.com"], platform: "wechat" },

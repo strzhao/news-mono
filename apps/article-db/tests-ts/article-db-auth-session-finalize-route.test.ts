@@ -1,7 +1,10 @@
+import { jwtVerify } from "jose";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/auth/session/finalize/route";
-import { AUTH_STATE_COOKIE_NAME, createAuthStateCookieValue } from "@/lib/article-db/auth-gateway-session";
-import { jwtVerify } from "jose";
+import {
+  AUTH_STATE_COOKIE_NAME,
+  createAuthStateCookieValue,
+} from "@/lib/article-db/auth-gateway-session";
 
 vi.mock("jose", () => {
   return {

@@ -11,6 +11,10 @@ export interface SourceConfig {
   sourceWeight: number;
   sourceType: string;
   onlyExternalLinks: boolean;
+  fetchMethod?: "rss" | "wechat_sogou";
+  fallbackFetchMethod?: "rss" | "wechat_sogou";
+  wechatSogouQuery?: string;
+  wechatSogouAuthor?: string;
 }
 
 export interface Article {

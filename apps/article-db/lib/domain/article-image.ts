@@ -70,7 +70,8 @@ export function extractFirstImageUrlFromHtml(html: string, pageUrl: string): str
     return ogResolved;
   }
 
-  const twitterImage = metaTags.find((tag) => tag.name?.toLowerCase() === "twitter:image")?.content || "";
+  const twitterImage =
+    metaTags.find((tag) => tag.name?.toLowerCase() === "twitter:image")?.content || "";
   const twitterResolved = absolutizeUrl(twitterImage, base);
   if (twitterResolved) {
     return twitterResolved;
@@ -92,7 +93,10 @@ export function clearArticleImageCache(): void {
   imageCache.clear();
 }
 
-export async function resolveFirstImageUrl(rawUrl: string, options: ResolveFirstImageOptions = {}): Promise<string> {
+export async function resolveFirstImageUrl(
+  rawUrl: string,
+  options: ResolveFirstImageOptions = {},
+): Promise<string> {
   const pageUrl = normalizedCacheKey(rawUrl);
   if (!pageUrl) {
     return "";
@@ -126,7 +130,11 @@ export async function resolveFirstImageUrl(rawUrl: string, options: ResolveFirst
     }
 
     const contentType = String(response.headers.get("content-type") || "").toLowerCase();
-    if (contentType && !contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+    if (
+      contentType &&
+      !contentType.includes("text/html") &&
+      !contentType.includes("application/xhtml+xml")
+    ) {
       imageCache.set(pageUrl, NO_IMAGE_SENTINEL, { ttl: NEGATIVE_TTL_MS });
       return "";
     }

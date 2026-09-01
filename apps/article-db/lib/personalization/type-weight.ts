@@ -45,7 +45,9 @@ export function computeTypeMultipliers(
     return {};
   }
 
-  const baseline = Object.values(decayedScores).reduce((sum, score) => sum + score, 0) / Object.keys(decayedScores).length;
+  const baseline =
+    Object.values(decayedScores).reduce((sum, score) => sum + score, 0) /
+    Object.keys(decayedScores).length;
   if (baseline <= 0) {
     return Object.fromEntries(Object.keys(decayedScores).map((primaryType) => [primaryType, 1]));
   }

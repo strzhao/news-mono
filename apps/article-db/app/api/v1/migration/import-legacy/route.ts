@@ -32,7 +32,8 @@ export async function GET(request: Request): Promise<Response> {
     const result = await runLegacyImport({
       days: Number.parseInt(queryValue(url, "days"), 10) || undefined,
       limitPerDay: Number.parseInt(queryValue(url, "limit_per_day"), 10) || undefined,
-      articleLimitPerDay: Number.parseInt(queryValue(url, "article_limit_per_day"), 10) || undefined,
+      articleLimitPerDay:
+        Number.parseInt(queryValue(url, "article_limit_per_day"), 10) || undefined,
       overwrite: isTruthy(queryValue(url, "overwrite")),
       qualityScore: Number.parseFloat(queryValue(url, "quality_score")) || undefined,
     });
@@ -55,6 +56,10 @@ export async function GET(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(500, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      500,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

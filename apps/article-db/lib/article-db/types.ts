@@ -131,6 +131,7 @@ export interface ArchivedArticleRow {
   feedback_total_count: number;
   feedback_last: string;
   feedback_last_at: string;
+  has_content: boolean;
 }
 
 export interface ArticleQualityFeedbackEvent {

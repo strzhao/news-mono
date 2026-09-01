@@ -57,7 +57,9 @@ function boundedIntAllowZero(value: unknown, fallback: number, max: number): num
 }
 
 function normalizeQualityTier(raw: unknown): QualityTier {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = String(raw || "")
+    .trim()
+    .toLowerCase();
   if (["general", "normal", "common", "non_high"].includes(value)) return "general";
   if (["all", "any"].includes(value)) return "all";
   return "high";
@@ -97,12 +99,18 @@ async function parseBody(request: Request): Promise<NextBatchBody> {
 
 function buildBatchKey(sourceDate: string): string {
   const nonce = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-  const hash = crypto.createHash("sha256").update(`${sourceDate}:${nonce}`).digest("hex").slice(0, 12);
+  const hash = crypto
+    .createHash("sha256")
+    .update(`${sourceDate}:${nonce}`)
+    .digest("hex")
+    .slice(0, 12);
   return `archive-articles-${sourceDate}-${hash}`;
 }
 
 function sortGroupsByDateDesc<T extends { date: string }>(groups: T[]): T[] {
-  return [...groups].sort((left, right) => String(right.date || "").localeCompare(String(left.date || "")));
+  return [...groups].sort((left, right) =>
+    String(right.date || "").localeCompare(String(left.date || "")),
+  );
 }
 
 function flattenArticleIds(groups: Array<{ items: FlomoArchiveArticleSummary[] }>): string[] {
@@ -152,7 +160,10 @@ function normalizeFlomoArchiveArticle(item: HighQualityArticleItem): FlomoArchiv
   };
 }
 
-function toFlomoArchiveGroups(groups: HighQualityArticleGroup[], articleLimitPerDay: number): Array<{
+function toFlomoArchiveGroups(
+  groups: HighQualityArticleGroup[],
+  articleLimitPerDay: number,
+): Array<{
   date: string;
   items: FlomoArchiveArticleSummary[];
 }> {
@@ -168,13 +179,18 @@ function toFlomoArchiveGroups(groups: HighQualityArticleGroup[], articleLimitPer
     .filter((group) => group.date && group.items.length > 0);
 }
 
-async function listArchiveGroups(options: ArchiveFetchOptions): Promise<Array<{ date: string; items: FlomoArchiveArticleSummary[] }>> {
+async function listArchiveGroups(
+  options: ArchiveFetchOptions,
+): Promise<Array<{ date: string; items: FlomoArchiveArticleSummary[] }>> {
   const toDate = dateShift(0, options.timezoneName);
   const fromDate = dateShift(Math.max(0, options.days - 1), options.timezoneName);
   const result = await listHighQualityRange({
     fromDate: fromDate <= toDate ? fromDate : toDate,
     toDate: fromDate <= toDate ? toDate : fromDate,
-    limitPerDay: options.articleLimitPerDay > 0 ? Math.min(options.limitPerDay, options.articleLimitPerDay) : options.limitPerDay,
+    limitPerDay:
+      options.articleLimitPerDay > 0
+        ? Math.min(options.limitPerDay, options.articleLimitPerDay)
+        : options.limitPerDay,
     qualityTier: options.qualityTier,
   });
   const normalized = toFlomoArchiveGroups(result.groups, options.articleLimitPerDay);
@@ -231,15 +247,25 @@ async function buildRetryPayloadFromArchives(params: {
 export async function POST(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   try {
     const body = await parseBody(request);
-    const timezoneName = String(body.tz || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+    const timezoneName =
+      String(body.tz || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
     const hasExplicitDate = Boolean(String(body.date || "").trim());
     const reportDate = normalizedDate(body.date, dateShift(0, timezoneName));
-    const days = boundedInt(body.days, Number.parseInt(process.env.FLOMO_ARCHIVE_DAYS || "30", 10) || 30, 1, 30);
+    const days = boundedInt(
+      body.days,
+      Number.parseInt(process.env.FLOMO_ARCHIVE_DAYS || "30", 10) || 30,
+      1,
+      30,
+    );
     const limitPerDay = boundedInt(
       body.limit_per_day,
       Number.parseInt(process.env.FLOMO_ARCHIVE_LIMIT_PER_DAY || "30", 10) || 30,
@@ -325,7 +351,9 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const groups = await listArchiveGroups(archiveOptions);
-    const candidateGroups = hasExplicitDate ? groups.filter((group) => group.date === reportDate) : groups;
+    const candidateGroups = hasExplicitDate
+      ? groups.filter((group) => group.date === reportDate)
+      : groups;
     const candidateArticleIds = flattenArticleIds(candidateGroups);
     const consumedIds = await listConsumedFlomoArchiveArticleIds(candidateArticleIds);
 

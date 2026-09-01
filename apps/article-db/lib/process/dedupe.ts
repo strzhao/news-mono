@@ -1,32 +1,14 @@
-import { Article, DedupeStats } from "@/lib/domain/models";
+import {
+  buildArticleIdentityKey,
+  normalizeArticleTitleKey,
+  normalizeArticleUrl,
+} from "@/lib/domain/article-identity";
+import type { Article, DedupeStats } from "@/lib/domain/models";
 
-const TRACKING_PARAM_PREFIXES = ["utm_", "spm", "fbclid", "gclid", "ref"];
-const NON_ALNUM_RE = /[^a-z0-9]+/g;
-
-export function normalizeUrl(url: string): string {
-  try {
-    const parsed = new URL(String(url || "").trim());
-    const kept: Array<[string, string]> = [];
-    parsed.searchParams.forEach((value, key) => {
-      if (TRACKING_PARAM_PREFIXES.some((prefix) => key.toLowerCase().startsWith(prefix))) {
-        return;
-      }
-      kept.push([key, value]);
-    });
-    const normalized = new URL(parsed.toString());
-    normalized.protocol = parsed.protocol.toLowerCase();
-    normalized.hostname = parsed.hostname.toLowerCase();
-    normalized.pathname = parsed.pathname.replace(/\/$/, "") || "/";
-    normalized.hash = "";
-    normalized.search = new URLSearchParams(kept).toString();
-    return normalized.toString();
-  } catch {
-    return String(url || "").trim();
-  }
-}
+export const normalizeUrl = normalizeArticleUrl;
 
 function normalizedTitle(title: string): string {
-  return String(title || "").toLowerCase().replace(NON_ALNUM_RE, " ").trim();
+  return normalizeArticleTitleKey(title);
 }
 
 function levenshteinRatio(a: string, b: string): number {
@@ -61,18 +43,18 @@ export function dedupeArticles(
   returnStats = false,
 ): Article[] | [Article[], DedupeStats] {
   const deduped: Article[] = [];
-  const seenUrls = new Set<string>();
-  const normalizedToArticle = new Map<string, Article>();
+  const seenIdentityKeys = new Set<string>();
+  const identityToArticle = new Map<string, Article>();
 
   let urlDuplicates = 0;
   let titleDuplicates = 0;
   const droppedItems: Array<Record<string, string>> = [];
 
   for (const article of articles) {
-    const normalized = normalizeUrl(article.url);
-    if (seenUrls.has(normalized)) {
+    const identityKey = buildArticleIdentityKey(article);
+    if (seenIdentityKeys.has(identityKey)) {
       urlDuplicates += 1;
-      const matched = normalizedToArticle.get(normalized);
+      const matched = identityToArticle.get(identityKey);
       droppedItems.push({
         reason: "url_duplicate",
         article_id: article.id,
@@ -82,7 +64,7 @@ export function dedupeArticles(
         matched_article_id: matched?.id || "",
         matched_title: matched?.title || "",
         matched_url: matched?.url || "",
-        similarity: "1.0",
+        similarity: article.url === matched?.url ? "1.0" : "stable_key",
       });
       continue;
     }
@@ -116,8 +98,8 @@ export function dedupeArticles(
       continue;
     }
 
-    seenUrls.add(normalized);
-    normalizedToArticle.set(normalized, article);
+    seenIdentityKeys.add(identityKey);
+    identityToArticle.set(identityKey, article);
     deduped.push(article);
   }
 

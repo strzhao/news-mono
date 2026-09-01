@@ -33,7 +33,9 @@ function normalizedDate(raw: string, fallback: string): string {
 }
 
 function normalizeQualityTier(raw: string): "high" | "general" | "all" {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = String(raw || "")
+    .trim()
+    .toLowerCase();
   if (["high", "hq", "default"].includes(value)) return "high";
   if (["general", "normal", "common", "non_high"].includes(value)) return "general";
   return "all";
@@ -42,10 +44,15 @@ function normalizeQualityTier(raw: string): "high" | "general" | "all" {
 export async function GET(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
-  const timezoneName = String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+  const timezoneName =
+    String(process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
   const defaultTo = dateShift(0, timezoneName);
   const defaultFrom = dateShift(29, timezoneName);
 
@@ -95,6 +102,10 @@ export async function GET(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(400, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      400,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

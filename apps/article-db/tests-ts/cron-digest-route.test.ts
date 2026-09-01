@@ -3,7 +3,11 @@ import { analysisArchiveEnabled, buildDigestArgv } from "@/lib/routes/cron-diges
 
 describe("cron digest route helpers", () => {
   it("buildDigestArgv supports defaults", () => {
-    const argv = buildDigestArgv(new URL("https://example.com/api/cron_digest"), "Asia/Shanghai", "/tmp/reports");
+    const argv = buildDigestArgv(
+      new URL("https://example.com/api/cron_digest"),
+      "Asia/Shanghai",
+      "/tmp/reports",
+    );
     expect(argv).toEqual(["vercel-cron", "--tz", "Asia/Shanghai", "--output-dir", "/tmp/reports"]);
   });
 
@@ -33,6 +37,8 @@ describe("cron digest route helpers", () => {
   });
 
   it("analysisArchiveEnabled supports query override", () => {
-    expect(analysisArchiveEnabled(new URL("https://example.com/api/cron_digest?archive_analysis=1"))).toBe(true);
+    expect(
+      analysisArchiveEnabled(new URL("https://example.com/api/cron_digest?archive_analysis=1")),
+    ).toBe(true);
   });
 });

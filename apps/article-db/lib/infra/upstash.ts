@@ -51,7 +51,9 @@ export class UpstashClient {
   }
 
   async hincrby(key: string, field: string, increment = 1): Promise<void> {
-    await this.call(`/hincrby/${encodeSegment(key)}/${encodeSegment(field)}/${toInt(increment, 1)}`);
+    await this.call(
+      `/hincrby/${encodeSegment(key)}/${encodeSegment(field)}/${toInt(increment, 1)}`,
+    );
   }
 
   async expire(key: string, ttlSeconds = DEFAULT_TTL_SECONDS): Promise<void> {
@@ -121,7 +123,9 @@ export class UpstashClient {
   }
 
   async zrevrange(key: string, start: number, stop: number): Promise<string[]> {
-    const responses = await this.pipeline([["ZREVRANGE", key, Math.trunc(start), Math.trunc(stop)]]);
+    const responses = await this.pipeline([
+      ["ZREVRANGE", key, Math.trunc(start), Math.trunc(stop)],
+    ]);
     const payload = unwrapPipelineResult(responses[0]);
     if (!Array.isArray(payload)) {
       return [];

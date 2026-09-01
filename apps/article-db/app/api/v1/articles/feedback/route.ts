@@ -26,13 +26,19 @@ async function parseBody(request: Request): Promise<FeedbackBody> {
 export async function POST(request: Request): Promise<Response> {
   const unauthorized = await requireArticleDbAuth(request);
   if (unauthorized) {
-    return jsonResponse(unauthorized.status, { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode }, true);
+    return jsonResponse(
+      unauthorized.status,
+      { ok: false, error: unauthorized.error, auth_mode: unauthorized.mode },
+      true,
+    );
   }
 
   try {
     const body = await parseBody(request);
     const articleId = String(body.article_id || "").trim();
-    const feedback = String(body.feedback || "").trim().toLowerCase();
+    const feedback = String(body.feedback || "")
+      .trim()
+      .toLowerCase();
 
     if (!articleId) {
       return jsonResponse(400, { ok: false, error: "Missing article_id" }, true);
@@ -62,6 +68,10 @@ export async function POST(request: Request): Promise<Response> {
       true,
     );
   } catch (error) {
-    return jsonResponse(400, { ok: false, error: error instanceof Error ? error.message : String(error) }, true);
+    return jsonResponse(
+      400,
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      true,
+    );
   }
 }

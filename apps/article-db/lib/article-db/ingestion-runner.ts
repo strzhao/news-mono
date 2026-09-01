@@ -1,14 +1,3 @@
-import { loadArticleTypes, loadSources } from "@/lib/config-loader";
-import { Article, DedupeStats } from "@/lib/domain/models";
-import { fetchArticleContent, fetchArticleContentSmart } from "@/lib/fetch/article-content-fetcher";
-import { fetchArticles, type SourceFetchStat } from "@/lib/fetch/rss-fetcher";
-import { DeepSeekClient } from "@/lib/llm/deepseek-client";
-import { ArticleEvaluator, type ArticleEvalTelemetry } from "@/lib/llm/article-evaluator";
-import { ArticleEvalCache } from "@/lib/cache/article-eval-cache";
-import { dedupeArticles } from "@/lib/process/dedupe";
-import { normalizeArticles } from "@/lib/process/normalize";
-import { readingPause } from "@/lib/fetch/timing";
-import { FetchError } from "@/lib/fetch/errors";
 import {
   countDailyAnalyzed,
   countDailyHighQuality,
@@ -33,19 +22,22 @@ import {
   upsertDailyHighQuality,
   upsertSources,
 } from "@/lib/article-db/repository";
+import { ArticleEvalCache } from "@/lib/cache/article-eval-cache";
+import { loadArticleTypes, loadSources } from "@/lib/config-loader";
+import {
+  currentDateInTimezone,
+  isPublishedWithinReportWindow,
+} from "@/lib/domain/article-identity";
+import type { Article, DedupeStats } from "@/lib/domain/models";
+import { fetchArticleContentSmart } from "@/lib/fetch/article-content-fetcher";
+import { FetchError } from "@/lib/fetch/errors";
+import { fetchArticles } from "@/lib/fetch/rss-fetcher";
+import { readingPause } from "@/lib/fetch/timing";
+import { type ArticleEvalTelemetry, ArticleEvaluator } from "@/lib/llm/article-evaluator";
 import { generateArticleSummary } from "@/lib/llm/article-summary-generator";
-
-function targetDate(dateValue: string | undefined, timezoneName: string): string {
-  if (dateValue) return dateValue;
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezoneName,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const [{ value: year }, , { value: month }, , { value: day }] = formatter.formatToParts(new Date());
-  return `${year}-${month}-${day}`;
-}
+import { DeepSeekClient } from "@/lib/llm/deepseek-client";
+import { dedupeArticles } from "@/lib/process/dedupe";
+import { normalizeArticles } from "@/lib/process/normalize";
 
 function nonEmptyDate(value: string): string {
   const raw = String(value || "").trim();
@@ -63,8 +55,73 @@ function sortedByPublishedAtDesc(articles: Article[]): Article[] {
   });
 }
 
+export function buildEvaluationPool(
+  articles: Article[],
+  maxEvalArticles: number,
+  options: {
+    reservedWechatArticles?: number;
+    reservedWechatMaxAgeDays?: number;
+    referenceDate?: string;
+    timezoneName?: string;
+    nowMs?: number;
+  } = {},
+): Article[] {
+  const limit = Math.max(1, Math.trunc(maxEvalArticles || 0));
+  const timezoneName =
+    String(options.timezoneName || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() ||
+    "Asia/Shanghai";
+  const nowMs = options.nowMs ?? Date.now();
+  const referenceDate =
+    String(options.referenceDate || "").trim() ||
+    currentDateInTimezone(timezoneName, new Date(nowMs));
+  const reservedWechatArticles = Math.max(
+    0,
+    Math.min(limit, Math.trunc(options.reservedWechatArticles ?? 0)),
+  );
+  const reservedWechatMaxAgeDays = Math.max(
+    1,
+    Math.min(3650, Math.trunc(options.reservedWechatMaxAgeDays ?? 3)),
+  );
+  const ranked = sortedByPublishedAtDesc(articles);
+
+  if (reservedWechatArticles <= 0) {
+    return ranked.slice(0, limit);
+  }
+
+  const selected: Article[] = [];
+  const selectedIds = new Set<string>();
+  const reservedWechat = ranked
+    .filter(
+      (article) =>
+        article.sourceType === "wechat" &&
+        isPublishedWithinReportWindow(
+          article.publishedAt,
+          referenceDate,
+          reservedWechatMaxAgeDays,
+          timezoneName,
+        ),
+    )
+    .slice(0, reservedWechatArticles);
+
+  for (const article of reservedWechat) {
+    selected.push(article);
+    selectedIds.add(article.id);
+  }
+
+  for (const article of ranked) {
+    if (selected.length >= limit) break;
+    if (selectedIds.has(article.id)) continue;
+    selected.push(article);
+    selectedIds.add(article.id);
+  }
+
+  return selected;
+}
+
 function isEnabled(name: string, defaultValue = "true"): boolean {
-  const raw = String(process.env[name] || defaultValue || "").trim().toLowerCase();
+  const raw = String(process.env[name] || defaultValue || "")
+    .trim()
+    .toLowerCase();
   return !["0", "false", "no", "off"].includes(raw);
 }
 
@@ -84,7 +141,7 @@ function normalizeBucketKey(value: string): string {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -184,7 +241,11 @@ function boundedRate(numerator: number, denominator: number): number {
   return Number((numerator / denominator).toFixed(4));
 }
 
-function aiTelemetryStats(telemetry: ArticleEvalTelemetry | null, modelName: string, promptVersion: string): Record<string, unknown> {
+function aiTelemetryStats(
+  telemetry: ArticleEvalTelemetry | null,
+  modelName: string,
+  promptVersion: string,
+): Record<string, unknown> {
   const base = telemetry || {
     total_candidates: 0,
     evaluated_success: 0,
@@ -199,7 +260,10 @@ function aiTelemetryStats(telemetry: ArticleEvalTelemetry | null, modelName: str
     error_type_counts: {},
     failed_samples: [],
   };
-  const attempted = Math.max(0, Number(base.evaluated_success || 0) + Number(base.evaluated_failed || 0));
+  const attempted = Math.max(
+    0,
+    Number(base.evaluated_success || 0) + Number(base.evaluated_failed || 0),
+  );
   const cacheTotal = Math.max(0, Number(base.cache_hit || 0) + Number(base.cache_miss || 0));
   return {
     ai_eval_model_name: String(modelName || ""),
@@ -217,7 +281,9 @@ function aiTelemetryStats(telemetry: ArticleEvalTelemetry | null, modelName: str
     ai_eval_latency_ms_p90: Number(base.latency_ms_p90 || 0),
     ai_eval_latency_ms_max: Number(base.latency_ms_max || 0),
     ai_eval_error_type_counts: base.error_type_counts || {},
-    ai_eval_failed_samples_count: Array.isArray(base.failed_samples) ? base.failed_samples.length : 0,
+    ai_eval_failed_samples_count: Array.isArray(base.failed_samples)
+      ? base.failed_samples.length
+      : 0,
     ai_eval_failed_samples: Array.isArray(base.failed_samples) ? base.failed_samples : [],
   };
 }
@@ -348,21 +414,60 @@ export interface IngestionResult {
   errorMessage: string;
 }
 
-export async function runIngestionWithResult(options: RunIngestionOptions = {}): Promise<IngestionResult> {
-  const timezoneName = String(options.tz || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
-  const reportDate = nonEmptyDate(targetDate(options.date, timezoneName));
-  const qualityThreshold = Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50")) || 50;
+export async function runIngestionWithResult(
+  options: RunIngestionOptions = {},
+): Promise<IngestionResult> {
+  const timezoneName =
+    String(options.tz || process.env.DIGEST_TIMEZONE || "Asia/Shanghai").trim() || "Asia/Shanghai";
+  const reportDate = nonEmptyDate(options.date || currentDateInTimezone(timezoneName));
+  const qualityThreshold =
+    Number.parseFloat(String(process.env.QUALITY_SCORE_THRESHOLD || "50")) || 50;
   const perSourceMax = boundedInt(String(process.env.ARTICLE_DB_MAX_PER_SOURCE || "25"), 25, 1, 60);
   const fetchBudget = boundedInt(String(process.env.SOURCE_FETCH_BUDGET || "0"), 0, 0, 2000);
-  const maxEvalArticlesConfig = boundedInt(String(process.env.MAX_EVAL_ARTICLES || "120"), 120, 1, 200);
-  const fetchTimeoutSeconds = boundedFloat(String(process.env.RSS_FETCH_TIMEOUT_SECONDS || "12"), 12, 2, 30);
+  const maxEvalArticlesConfig = boundedInt(
+    String(process.env.MAX_EVAL_ARTICLES || "120"),
+    120,
+    1,
+    200,
+  );
+  const fetchTimeoutSeconds = boundedFloat(
+    String(process.env.RSS_FETCH_TIMEOUT_SECONDS || "12"),
+    12,
+    2,
+    30,
+  );
   const fetchConcurrency = boundedInt(String(process.env.RSS_FETCH_CONCURRENCY || "8"), 8, 1, 12);
   const mergeDailySnapshot = isEnabled("INGESTION_DAILY_MERGE_MODE", "true");
-  const staleRunSeconds = boundedInt(String(process.env.INGESTION_RUN_STALE_SECONDS || "900"), 900, 120, 86_400);
-  const heartbeatIntervalMs = boundedInt(String(process.env.INGESTION_HEARTBEAT_INTERVAL_MS || "15000"), 15_000, 5_000, 60_000);
-  const fetchStageTimeoutMs = boundedInt(String(process.env.INGESTION_FETCH_STAGE_TIMEOUT_MS || "90000"), 90_000, 10_000, 240_000);
-  const evalStageTimeoutMs = boundedInt(String(process.env.INGESTION_EVAL_STAGE_TIMEOUT_MS || "140000"), 140_000, 10_000, 260_000);
-  const runHardTimeoutMs = boundedInt(String(process.env.INGESTION_RUN_TIMEOUT_MS || "285000"), 285_000, 30_000, 295_000);
+  const staleRunSeconds = boundedInt(
+    String(process.env.INGESTION_RUN_STALE_SECONDS || "900"),
+    900,
+    120,
+    86_400,
+  );
+  const heartbeatIntervalMs = boundedInt(
+    String(process.env.INGESTION_HEARTBEAT_INTERVAL_MS || "15000"),
+    15_000,
+    5_000,
+    60_000,
+  );
+  const fetchStageTimeoutMs = boundedInt(
+    String(process.env.INGESTION_FETCH_STAGE_TIMEOUT_MS || "90000"),
+    90_000,
+    10_000,
+    240_000,
+  );
+  const evalStageTimeoutMs = boundedInt(
+    String(process.env.INGESTION_EVAL_STAGE_TIMEOUT_MS || "140000"),
+    140_000,
+    10_000,
+    260_000,
+  );
+  const runHardTimeoutMs = boundedInt(
+    String(process.env.INGESTION_RUN_TIMEOUT_MS || "285000"),
+    285_000,
+    30_000,
+    295_000,
+  );
   const evalPerArticleEstimateMs = boundedInt(
     String(process.env.INGESTION_EVAL_ESTIMATE_PER_ARTICLE_MS || "12000"),
     12_000,
@@ -370,24 +475,91 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
     30_000,
   );
   const feedbackAdjustEnabled = isEnabled("INGESTION_FEEDBACK_ADJUST_ENABLED", "true");
-  const feedbackLookbackDays = boundedInt(String(process.env.FEEDBACK_LOOKBACK_DAYS || "120"), 120, 1, 365);
-  const feedbackArticleWeight = boundedFloat(String(process.env.FEEDBACK_ARTICLE_WEIGHT || "6"), 6, 0, 20);
-  const feedbackSourceWeight = boundedFloat(String(process.env.FEEDBACK_SOURCE_WEIGHT || "3"), 3, 0, 20);
-  const feedbackTypeWeight = boundedFloat(String(process.env.FEEDBACK_TYPE_WEIGHT || "2"), 2, 0, 20);
-  const feedbackArticleMinSamples = boundedInt(String(process.env.FEEDBACK_ARTICLE_MIN_SAMPLES || "3"), 3, 1, 1000);
-  const feedbackSourceMinSamples = boundedInt(String(process.env.FEEDBACK_SOURCE_MIN_SAMPLES || "6"), 6, 1, 1000);
-  const feedbackTypeMinSamples = boundedInt(String(process.env.FEEDBACK_TYPE_MIN_SAMPLES || "8"), 8, 1, 1000);
-  const feedbackArticleMaxAbs = boundedFloat(String(process.env.FEEDBACK_ARTICLE_MAX_ABS || "10"), 10, 0, 30);
-  const feedbackSourceMaxAbs = boundedFloat(String(process.env.FEEDBACK_SOURCE_MAX_ABS || "6"), 6, 0, 30);
-  const feedbackTypeMaxAbs = boundedFloat(String(process.env.FEEDBACK_TYPE_MAX_ABS || "5"), 5, 0, 30);
+  const feedbackLookbackDays = boundedInt(
+    String(process.env.FEEDBACK_LOOKBACK_DAYS || "120"),
+    120,
+    1,
+    365,
+  );
+  const feedbackArticleWeight = boundedFloat(
+    String(process.env.FEEDBACK_ARTICLE_WEIGHT || "6"),
+    6,
+    0,
+    20,
+  );
+  const feedbackSourceWeight = boundedFloat(
+    String(process.env.FEEDBACK_SOURCE_WEIGHT || "3"),
+    3,
+    0,
+    20,
+  );
+  const feedbackTypeWeight = boundedFloat(
+    String(process.env.FEEDBACK_TYPE_WEIGHT || "2"),
+    2,
+    0,
+    20,
+  );
+  const feedbackArticleMinSamples = boundedInt(
+    String(process.env.FEEDBACK_ARTICLE_MIN_SAMPLES || "3"),
+    3,
+    1,
+    1000,
+  );
+  const feedbackSourceMinSamples = boundedInt(
+    String(process.env.FEEDBACK_SOURCE_MIN_SAMPLES || "6"),
+    6,
+    1,
+    1000,
+  );
+  const feedbackTypeMinSamples = boundedInt(
+    String(process.env.FEEDBACK_TYPE_MIN_SAMPLES || "8"),
+    8,
+    1,
+    1000,
+  );
+  const feedbackArticleMaxAbs = boundedFloat(
+    String(process.env.FEEDBACK_ARTICLE_MAX_ABS || "10"),
+    10,
+    0,
+    30,
+  );
+  const feedbackSourceMaxAbs = boundedFloat(
+    String(process.env.FEEDBACK_SOURCE_MAX_ABS || "6"),
+    6,
+    0,
+    30,
+  );
+  const feedbackTypeMaxAbs = boundedFloat(
+    String(process.env.FEEDBACK_TYPE_MAX_ABS || "5"),
+    5,
+    0,
+    30,
+  );
   const feedbackMaxPerArticle = boundedFloat(
     String(process.env.FEEDBACK_MAX_TOTAL_ADJUST_PER_ARTICLE || "12"),
     12,
     0,
     30,
   );
+  const reservedWechatEvalArticles = boundedInt(
+    String(process.env.INGESTION_WECHAT_RESERVED_EVAL_ARTICLES || "3"),
+    3,
+    0,
+    20,
+  );
+  const reservedWechatEvalMaxAgeDays = boundedInt(
+    String(process.env.INGESTION_WECHAT_RESERVED_MAX_AGE_DAYS || "3"),
+    3,
+    1,
+    3650,
+  );
   const crawlHighQualityContentEnabled = isEnabled("HQ_CONTENT_CRAWL_ENABLED", "true");
-  const crawlHighQualityContentLimit = boundedInt(String(process.env.HQ_CONTENT_CRAWL_LIMIT || "10"), 10, 0, 200);
+  const crawlHighQualityContentLimit = boundedInt(
+    String(process.env.HQ_CONTENT_CRAWL_LIMIT || "10"),
+    10,
+    0,
+    200,
+  );
   const crawlHighQualityContentConcurrency = boundedInt(
     String(process.env.HQ_CONTENT_CRAWL_CONCURRENCY || "3"),
     3,
@@ -420,6 +592,13 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
   );
   const evalBudgetCap = Math.max(1, Math.floor(evalStageTimeoutMs / evalPerArticleEstimateMs));
   const maxEvalArticles = Math.max(1, Math.min(maxEvalArticlesConfig, evalBudgetCap));
+  const runStartedAtMs = Date.now();
+  const optionalStageFinalizeBufferMs = 10_000;
+  const optionalStageMinBudgetMs = 3_000;
+
+  function remainingRunTimeMs(): number {
+    return Math.max(0, runStartedAtMs + runHardTimeoutMs - Date.now());
+  }
 
   await failStaleIngestionRuns({
     runDate: reportDate,
@@ -464,6 +643,8 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             totalTimeoutSeconds: Math.max(1, fetchStageTimeoutMs / 1000),
             maxPerSource: perSourceMax,
             totalBudget: fetchBudget,
+            reportDate,
+            timezoneName,
           }),
         );
         const fetched = fetchResult.articles;
@@ -471,9 +652,17 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
         result.fetchedCount = fetched.length;
 
         const normalized = normalizeArticles(fetched);
-        const [deduped, dedupeStats] = dedupeArticles(normalized, 0.93, true) as [Article[], DedupeStats];
+        const [deduped, dedupeStats] = dedupeArticles(normalized, 0.93, true) as [
+          Article[],
+          DedupeStats,
+        ];
         const ranked = sortedByPublishedAtDesc(deduped);
-        const evaluationPool = ranked.slice(0, maxEvalArticles);
+        const evaluationPool = buildEvaluationPool(ranked, maxEvalArticles, {
+          reservedWechatArticles: reservedWechatEvalArticles,
+          reservedWechatMaxAgeDays: reservedWechatEvalMaxAgeDays,
+          referenceDate: reportDate,
+          timezoneName,
+        });
         result.dedupedCount = evaluationPool.length;
 
         // Pre-crawl content for sources with empty feeds (e.g. WeChat/WeWe RSS Atom feeds lack content/summary)
@@ -484,13 +673,24 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             .filter(Boolean),
         );
         const preCrawlEnabled = preCrawlSourceTypes.size > 0;
-        const preCrawlTimeoutMs = boundedInt(String(process.env.PRE_CRAWL_TIMEOUT_MS || "8000"), 8_000, 500, 30_000);
-        const preCrawlConcurrency = boundedInt(String(process.env.PRE_CRAWL_CONCURRENCY || "3"), 3, 1, 8);
-        let preCrawlStats = { attempted: 0, enriched: 0, failed: 0 };
+        const preCrawlTimeoutMs = boundedInt(
+          String(process.env.PRE_CRAWL_TIMEOUT_MS || "8000"),
+          8_000,
+          500,
+          30_000,
+        );
+        const preCrawlConcurrency = boundedInt(
+          String(process.env.PRE_CRAWL_CONCURRENCY || "3"),
+          3,
+          1,
+          8,
+        );
+        const preCrawlStats = { attempted: 0, enriched: 0, failed: 0 };
 
         if (preCrawlEnabled && evaluationPool.length) {
           const needsPreCrawl = evaluationPool.filter(
-            (a) => preCrawlSourceTypes.has(a.sourceType) && (!a.summaryRaw || a.summaryRaw === a.title),
+            (a) =>
+              preCrawlSourceTypes.has(a.sourceType) && (!a.summaryRaw || a.summaryRaw === a.title),
           );
           preCrawlStats.attempted = needsPreCrawl.length;
 
@@ -508,7 +708,11 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
                   if (content.text && content.text.length > article.contentText.length) {
                     const snippet = content.text.slice(0, 2400);
                     article.summaryRaw = snippet.slice(0, 600);
-                    article.leadParagraph = snippet.split(/[。.!?\n]/).filter(Boolean)[0]?.slice(0, 280) || article.leadParagraph;
+                    article.leadParagraph =
+                      snippet
+                        .split(/[。.!?\n]/)
+                        .filter(Boolean)[0]
+                        ?.slice(0, 280) || article.leadParagraph;
                     article.contentText = [article.title, snippet].join(" ").slice(0, 2400);
                     preCrawlStats.enriched++;
                   }
@@ -518,15 +722,21 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
               }
             }
             await Promise.all(
-              Array.from({ length: Math.min(preCrawlConcurrency, needsPreCrawl.length) }, () => preCrawlWorker()),
+              Array.from({ length: Math.min(preCrawlConcurrency, needsPreCrawl.length) }, () =>
+                preCrawlWorker(),
+              ),
             );
           }
         }
 
         // Compute per-source fetch diagnostics (used in both early-return and full paths)
         const sourceStatsEntries = Object.entries(sourceFetchStats);
-        const sourceFetchSuccessCount = sourceStatsEntries.filter(([, s]) => !s.error && s.fetched > 0).length;
-        const sourceFetchEmptyCount = sourceStatsEntries.filter(([, s]) => !s.error && s.fetched === 0).length;
+        const sourceFetchSuccessCount = sourceStatsEntries.filter(
+          ([, s]) => !s.error && s.fetched > 0,
+        ).length;
+        const sourceFetchEmptyCount = sourceStatsEntries.filter(
+          ([, s]) => !s.error && s.fetched === 0,
+        ).length;
         const sourceFetchFailedEntries = sourceStatsEntries.filter(([, s]) => s.error);
         const sourceFetchErrors: Record<string, string> = {};
         for (const [id, stat] of sourceFetchFailedEntries.slice(0, 20)) {
@@ -537,7 +747,10 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
         if (!evaluationPool.length) {
           let prunedByCurrentScore = 0;
           if (mergeDailySnapshot) {
-            prunedByCurrentScore = await pruneDailyHighQualityByCurrentScore(reportDate, qualityThreshold);
+            prunedByCurrentScore = await pruneDailyHighQualityByCurrentScore(
+              reportDate,
+              qualityThreshold,
+            );
           }
           if (!mergeDailySnapshot) {
             await replaceDailyHighQuality(reportDate, []);
@@ -561,6 +774,8 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             selected_count_pruned_by_current_score: prunedByCurrentScore,
             daily_snapshot_merge_mode: mergeDailySnapshot,
             max_eval_articles: maxEvalArticles,
+            reserved_wechat_eval_articles: reservedWechatEvalArticles,
+            reserved_wechat_eval_max_age_days: reservedWechatEvalMaxAgeDays,
             ...aiTelemetryStats(null, "", ""),
             pre_crawl_attempted: preCrawlStats.attempted,
             pre_crawl_enriched: preCrawlStats.enriched,
@@ -576,7 +791,12 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             source_fetch_failed_count: sourceFetchFailedEntries.length,
             source_fetch_skipped_count: sourceFetchSkippedCount,
             source_fetch_errors: sourceFetchErrors,
-            source_fetch_details: Object.fromEntries(sourceStatsEntries.map(([id, s]) => [id, { fetched: s.fetched, ...(s.error ? { error: s.error } : {}) }])),
+            source_fetch_details: Object.fromEntries(
+              sourceStatsEntries.map(([id, s]) => [
+                id,
+                { fetched: s.fetched, ...(s.error ? { error: s.error } : {}) },
+              ]),
+            ),
           };
 
           await finishIngestionRun({
@@ -638,13 +858,22 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             const storedId = inputToStoredId[article.id];
             if (!storedId) return null;
             const baseQuality = Number(assessment.qualityScore || 0);
-            const typeKey = normalizeBucketKey(String(assessment.primaryType || "other")) || "other";
+            const typeKey =
+              normalizeBucketKey(String(assessment.primaryType || "other")) || "other";
             const articleBias = Number(feedbackAdjustment.article_bias[storedId] || 0);
-            const sourceBias = Number(feedbackAdjustment.source_bias[String(article.sourceId || "").trim()] || 0);
+            const sourceBias = Number(
+              feedbackAdjustment.source_bias[String(article.sourceId || "").trim()] || 0,
+            );
             const typeBias = Number(feedbackAdjustment.type_bias[typeKey] || 0);
             const totalBiasRaw = articleBias + sourceBias + typeBias;
-            const totalBias = Math.max(-feedbackMaxPerArticle, Math.min(feedbackMaxPerArticle, totalBiasRaw));
-            const adjustedQuality = Math.max(0, Math.min(100, Number((baseQuality + totalBias).toFixed(4))));
+            const totalBias = Math.max(
+              -feedbackMaxPerArticle,
+              Math.min(feedbackMaxPerArticle, totalBiasRaw),
+            );
+            const adjustedQuality = Math.max(
+              0,
+              Math.min(100, Number((baseQuality + totalBias).toFixed(4))),
+            );
             return {
               articleId: storedId,
               quality: adjustedQuality,
@@ -689,35 +918,17 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             rankScore: Number((1000000 - index * 1000 + item.quality).toFixed(4)),
           }));
 
-        const contentCrawlStats =
-          crawlHighQualityContentEnabled && selectedRows.length
-            ? await crawlAndPersistHighQualityContent({
-                articleIds: selectedRows.map((item) => item.articleId),
-                limit: crawlHighQualityContentLimit,
-                concurrency: crawlHighQualityContentConcurrency,
-                timeoutMs: crawlHighQualityContentTimeoutMs,
-                maxHtmlBytes: crawlHighQualityContentMaxHtmlBytes,
-                maxTextChars: crawlHighQualityContentMaxTextChars,
-                maxImages: crawlHighQualityContentMaxImages,
-              })
-            : {
-                attempted: 0,
-                fetched: 0,
-                failed: 0,
-                persisted: 0,
-                fetch_error_codes: {},
-              };
-
-        const summaryAutoGenEnabled = isEnabled("SUMMARY_AUTO_GENERATE", "false");
-        const summaryAutoStats =
-          summaryAutoGenEnabled && selectedRows.length
-            ? await batchGenerateSummaries(selectedRows.map((item) => item.articleId))
-            : { attempted: 0, completed: 0, failed: 0 };
-
         const adjustedRows = scoredRows.filter((item) => item.feedbackAdjustment !== 0);
-        const feedbackAdjustmentTotal = adjustedRows.reduce((sum, item) => sum + item.feedbackAdjustment, 0);
-        const feedbackAdjustmentPositive = adjustedRows.filter((item) => item.feedbackAdjustment > 0).length;
-        const feedbackAdjustmentNegative = adjustedRows.filter((item) => item.feedbackAdjustment < 0).length;
+        const feedbackAdjustmentTotal = adjustedRows.reduce(
+          (sum, item) => sum + item.feedbackAdjustment,
+          0,
+        );
+        const feedbackAdjustmentPositive = adjustedRows.filter(
+          (item) => item.feedbackAdjustment > 0,
+        ).length;
+        const feedbackAdjustmentNegative = adjustedRows.filter(
+          (item) => item.feedbackAdjustment < 0,
+        ).length;
 
         let demotedCount = 0;
         let prunedByCurrentScore = 0;
@@ -729,7 +940,10 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
             .map((item) => item.articleId)
             .filter((articleId) => !selectedIdSet.has(articleId));
           demotedCount = await removeDailyHighQualityByArticleIds(reportDate, demotedArticleIds);
-          prunedByCurrentScore = await pruneDailyHighQualityByCurrentScore(reportDate, qualityThreshold);
+          prunedByCurrentScore = await pruneDailyHighQualityByCurrentScore(
+            reportDate,
+            qualityThreshold,
+          );
         } else {
           await replaceDailyHighQuality(reportDate, selectedRows);
           await replaceDailyAnalyzed(reportDate, analyzedRows);
@@ -738,6 +952,28 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
         const selectedTotal = await countDailyHighQuality(reportDate);
         const analyzedTotal = await countDailyAnalyzed(reportDate);
         result.selectedCount = selectedTotal;
+
+        const summaryAutoGenEnabled = isEnabled("SUMMARY_AUTO_GENERATE", "false");
+        let contentCrawlStats = {
+          attempted: 0,
+          fetched: 0,
+          failed: 0,
+          persisted: 0,
+          fetch_error_codes: {},
+        };
+        let summaryAutoStats = { attempted: 0, completed: 0, failed: 0 };
+        let contentCrawlStageStatus:
+          | "disabled"
+          | "completed"
+          | "skipped_insufficient_budget"
+          | "failed" =
+          crawlHighQualityContentEnabled && selectedRows.length ? "completed" : "disabled";
+        let summaryAutoStageStatus:
+          | "disabled"
+          | "completed"
+          | "skipped_insufficient_budget"
+          | "failed" = summaryAutoGenEnabled && selectedRows.length ? "completed" : "disabled";
+        const optionalStageWarnings: string[] = [];
 
         result.ok = true;
         result.stats = {
@@ -759,6 +995,8 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
           daily_snapshot_merge_mode: mergeDailySnapshot,
           quality_threshold: qualityThreshold,
           max_eval_articles: maxEvalArticles,
+          reserved_wechat_eval_articles: reservedWechatEvalArticles,
+          reserved_wechat_eval_max_age_days: reservedWechatEvalMaxAgeDays,
           max_per_source: perSourceMax,
           fetch_budget: fetchBudget,
           fetch_timeout_seconds: fetchTimeoutSeconds,
@@ -774,7 +1012,9 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
           feedback_type_bias_keys: Object.keys(feedbackAdjustment.type_bias).length,
           feedback_adjusted_article_count: adjustedRows.length,
           feedback_adjustment_total: Number(feedbackAdjustmentTotal.toFixed(4)),
-          feedback_adjustment_avg: adjustedRows.length ? Number((feedbackAdjustmentTotal / adjustedRows.length).toFixed(4)) : 0,
+          feedback_adjustment_avg: adjustedRows.length
+            ? Number((feedbackAdjustmentTotal / adjustedRows.length).toFixed(4))
+            : 0,
           feedback_adjustment_positive_count: feedbackAdjustmentPositive,
           feedback_adjustment_negative_count: feedbackAdjustmentNegative,
           feedback_adjustment_max_per_article: feedbackMaxPerArticle,
@@ -788,21 +1028,102 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
           hq_content_crawl_max_html_bytes: crawlHighQualityContentMaxHtmlBytes,
           hq_content_crawl_max_text_chars: crawlHighQualityContentMaxTextChars,
           hq_content_crawl_max_images: crawlHighQualityContentMaxImages,
+          hq_content_crawl_stage_status: contentCrawlStageStatus,
           hq_content_crawl_attempted: contentCrawlStats.attempted,
           hq_content_crawl_fetched: contentCrawlStats.fetched,
           hq_content_crawl_failed: contentCrawlStats.failed,
           hq_content_crawl_persisted: contentCrawlStats.persisted,
           hq_content_crawl_error_codes: contentCrawlStats.fetch_error_codes,
           summary_auto_generate_enabled: summaryAutoGenEnabled,
+          summary_auto_stage_status: summaryAutoStageStatus,
           summary_auto_attempted: summaryAutoStats.attempted,
           summary_auto_completed: summaryAutoStats.completed,
           summary_auto_failed: summaryAutoStats.failed,
+          optional_stage_finalize_buffer_ms: optionalStageFinalizeBufferMs,
+          optional_stage_min_budget_ms: optionalStageMinBudgetMs,
+          optional_stage_warning_count: optionalStageWarnings.length,
+          optional_stage_warnings: optionalStageWarnings,
           source_fetch_success_count: sourceFetchSuccessCount,
           source_fetch_empty_count: sourceFetchEmptyCount,
           source_fetch_failed_count: sourceFetchFailedEntries.length,
           source_fetch_skipped_count: sourceFetchSkippedCount,
           source_fetch_errors: sourceFetchErrors,
-          source_fetch_details: Object.fromEntries(sourceStatsEntries.map(([id, s]) => [id, { fetched: s.fetched, ...(s.error ? { error: s.error } : {}) }])),
+          source_fetch_details: Object.fromEntries(
+            sourceStatsEntries.map(([id, s]) => [
+              id,
+              { fetched: s.fetched, ...(s.error ? { error: s.error } : {}) },
+            ]),
+          ),
+        };
+
+        if (crawlHighQualityContentEnabled && selectedRows.length) {
+          const remainingMs = remainingRunTimeMs() - optionalStageFinalizeBufferMs;
+          if (remainingMs < optionalStageMinBudgetMs) {
+            contentCrawlStageStatus = "skipped_insufficient_budget";
+            optionalStageWarnings.push(
+              `hq_content_crawl skipped: only ${Math.max(0, remainingMs)}ms remaining`,
+            );
+          } else {
+            try {
+              contentCrawlStats = await withTimeout(
+                "hq_content_crawl_stage",
+                remainingMs,
+                crawlAndPersistHighQualityContent({
+                  articleIds: selectedRows.map((item) => item.articleId),
+                  limit: crawlHighQualityContentLimit,
+                  concurrency: crawlHighQualityContentConcurrency,
+                  timeoutMs: crawlHighQualityContentTimeoutMs,
+                  maxHtmlBytes: crawlHighQualityContentMaxHtmlBytes,
+                  maxTextChars: crawlHighQualityContentMaxTextChars,
+                  maxImages: crawlHighQualityContentMaxImages,
+                }),
+              );
+            } catch (error) {
+              contentCrawlStageStatus = "failed";
+              optionalStageWarnings.push(
+                `hq_content_crawl failed: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          }
+        }
+
+        if (summaryAutoGenEnabled && selectedRows.length) {
+          const remainingMs = remainingRunTimeMs() - optionalStageFinalizeBufferMs;
+          if (remainingMs < optionalStageMinBudgetMs) {
+            summaryAutoStageStatus = "skipped_insufficient_budget";
+            optionalStageWarnings.push(
+              `summary_auto skipped: only ${Math.max(0, remainingMs)}ms remaining`,
+            );
+          } else {
+            try {
+              summaryAutoStats = await withTimeout(
+                "summary_auto_stage",
+                remainingMs,
+                batchGenerateSummaries(selectedRows.map((item) => item.articleId)),
+              );
+            } catch (error) {
+              summaryAutoStageStatus = "failed";
+              optionalStageWarnings.push(
+                `summary_auto failed: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          }
+        }
+
+        result.stats = {
+          ...(result.stats || {}),
+          hq_content_crawl_stage_status: contentCrawlStageStatus,
+          hq_content_crawl_attempted: contentCrawlStats.attempted,
+          hq_content_crawl_fetched: contentCrawlStats.fetched,
+          hq_content_crawl_failed: contentCrawlStats.failed,
+          hq_content_crawl_persisted: contentCrawlStats.persisted,
+          hq_content_crawl_error_codes: contentCrawlStats.fetch_error_codes,
+          summary_auto_stage_status: summaryAutoStageStatus,
+          summary_auto_attempted: summaryAutoStats.attempted,
+          summary_auto_completed: summaryAutoStats.completed,
+          summary_auto_failed: summaryAutoStats.failed,
+          optional_stage_warning_count: optionalStageWarnings.length,
+          optional_stage_warnings: optionalStageWarnings,
         };
 
         await finishIngestionRun({
@@ -820,6 +1141,31 @@ export async function runIngestionWithResult(options: RunIngestionOptions = {}):
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (result.ok) {
+      result.errorMessage = "";
+      result.stats = {
+        ...(result.stats || {}),
+        optional_stage_warnings: [
+          ...((Array.isArray(result.stats?.optional_stage_warnings)
+            ? result.stats.optional_stage_warnings
+            : []) as string[]),
+          `post_persist_error: ${message}`,
+        ],
+      };
+
+      await finishIngestionRun({
+        runId,
+        status: "success",
+        fetchedCount: result.fetchedCount,
+        dedupedCount: result.dedupedCount,
+        analyzedCount: result.evaluatedCount,
+        selectedCount: result.selectedCount,
+        statsJson: result.stats,
+      });
+
+      return result;
+    }
+
     result.errorMessage = message;
     result.stats = {
       ...(result.stats || {}),

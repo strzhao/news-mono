@@ -1,5 +1,5 @@
-import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { JWTPayload } from "jose";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import { parseBearerToken } from "@/lib/domain/tracker-common";
 
 export const ACCESS_TOKEN_COOKIE_NAME = "article_db_access_token";
@@ -84,7 +84,10 @@ function resolveJwksResolver(jwksUrl: string): ReturnType<typeof createRemoteJWK
   return cachedJwksResolver;
 }
 
-function readAccessTokenFromRequest(request: Request): { token: string; source: "authorization" | "none" } {
+function readAccessTokenFromRequest(request: Request): {
+  token: string;
+  source: "authorization" | "none";
+} {
   const authorizationToken = parseBearerToken(request.headers.get("authorization"));
   if (authorizationToken) {
     return { token: authorizationToken, source: "authorization" };
@@ -108,7 +111,10 @@ function normalizeJwtUser(payload: JWTPayload): ArticleDbAuthUser {
   };
 }
 
-async function verifyJwtAccessToken(token: string, config: AuthConfig): Promise<ArticleDbAuthResult> {
+async function verifyJwtAccessToken(
+  token: string,
+  config: AuthConfig,
+): Promise<ArticleDbAuthResult> {
   try {
     const resolver = resolveJwksResolver(config.jwksUrl);
     const verification = await jwtVerify(token, resolver, {
@@ -144,7 +150,10 @@ async function verifyJwtAccessToken(token: string, config: AuthConfig): Promise<
   }
 }
 
-function success(mode: ArticleDbAuthMode, user: ArticleDbAuthUser | null = null): ArticleDbAuthSuccess {
+function success(
+  mode: ArticleDbAuthMode,
+  user: ArticleDbAuthUser | null = null,
+): ArticleDbAuthSuccess {
   return {
     ok: true,
     mode,
@@ -160,7 +169,10 @@ export function articleDbAuthEnabled(): boolean {
   return authIsConfigured(authConfig(), legacyToken());
 }
 
-export async function authenticateArticleDbRequest(request: Request, options: AuthOptions = {}): Promise<ArticleDbAuthResult> {
+export async function authenticateArticleDbRequest(
+  request: Request,
+  options: AuthOptions = {},
+): Promise<ArticleDbAuthResult> {
   const { allowLegacyToken = true, allowUnconfigured = true } = options;
   const config = authConfig();
   const legacy = legacyToken();

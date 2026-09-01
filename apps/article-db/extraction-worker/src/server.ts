@@ -8,17 +8,47 @@
  * Auth: Bearer token via BROWSER_EXTRACT_AUTH_TOKEN env var.
  * Port: BROWSER_EXTRACT_PORT env var (default 3100).
  */
+import { execFileSync } from "node:child_process";
 import http from "node:http";
 import {
-  extractWithBrowser,
-  closeBrowserPool,
   type BrowserExtractOptions,
   type BrowserExtractResult,
+  closeBrowserPool,
+  extractWithBrowser,
+  getBrowserPoolStats,
+  getCircuitBreakerStats,
 } from "./extractors/browser.js";
 
 const PORT = Number(process.env.BROWSER_EXTRACT_PORT) || 3100;
 const AUTH_TOKEN = process.env.BROWSER_EXTRACT_AUTH_TOKEN || "";
 const startedAt = Date.now();
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.stack || `${error.name}: ${error.message}`;
+  return String(error);
+}
+
+function closeHttpServer(server: http.Server): Promise<void> {
+  return new Promise((resolve) => {
+    const forceCloseTimer = setTimeout(() => {
+      console.warn("[server] Force-closing open connections after shutdown timeout");
+      server.closeAllConnections?.();
+    }, 5_000);
+    forceCloseTimer.unref();
+
+    server.close((error) => {
+      clearTimeout(forceCloseTimer);
+      if (error) {
+        console.error(`[server] Error while closing HTTP server: ${formatError(error)}`);
+      } else {
+        console.log("[server] HTTP server closed");
+      }
+      resolve();
+    });
+
+    server.closeIdleConnections?.();
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -62,10 +92,7 @@ function checkAuth(req: http.IncomingMessage): boolean {
 // Route handlers
 // ---------------------------------------------------------------------------
 
-async function handleExtract(
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-): Promise<void> {
+async function handleExtract(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const raw = await readBody(req);
   let body: Record<string, unknown>;
   try {
@@ -102,14 +129,56 @@ async function handleExtract(
   }
 }
 
-function handleHealth(
-  _req: http.IncomingMessage,
-  res: http.ServerResponse,
-): void {
+function handleHealth(_req: http.IncomingMessage, res: http.ServerResponse): void {
+  const poolStats = getBrowserPoolStats();
+  const cbStats = getCircuitBreakerStats();
   json(res, 200, {
     ok: true,
     uptime_seconds: Math.floor((Date.now() - startedAt) / 1000),
+    browser_pool: poolStats,
+    circuit_breaker: cbStats,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Startup: kill orphaned Chrome processes from previous server runs
+// ---------------------------------------------------------------------------
+
+function cleanupOrphanedChrome(): void {
+  try {
+    const output = execFileSync("ps", ["-axo", "pid=,ppid=,command="], { encoding: "utf8" });
+    let cleaned = 0;
+    for (const line of output.split("\n")) {
+      const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
+      if (!match) continue;
+      const pid = Number.parseInt(match[1], 10);
+      const ppid = Number.parseInt(match[2], 10);
+      const command = match[3] || "";
+      if (!Number.isFinite(pid) || pid === process.pid) continue;
+      // Skip children of the current process (they're managed by the pool)
+      if (ppid === process.pid) continue;
+      // Only target headless-shell processes (Playwright's headless runtime),
+      // NOT regular Chrome/Chromium browsers the user may have open
+      if (!command.includes("chrome-headless-shell")) continue;
+      try {
+        process.kill(pid, "SIGTERM");
+        cleaned++;
+      } catch {
+        // Process may have already exited — ignore
+      }
+    }
+    if (cleaned > 0) {
+      console.log(
+        `[server] Cleaned up ${cleaned} orphaned chrome-headless-shell process(es) at startup`,
+      );
+    } else {
+      console.log("[server] No orphaned chrome-headless-shell processes found at startup");
+    }
+  } catch (err) {
+    console.warn(
+      `[server] cleanupOrphanedChrome failed: ${err instanceof Error ? err.message : err}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +186,8 @@ function handleHealth(
 // ---------------------------------------------------------------------------
 
 export function startServer(): http.Server {
+  cleanupOrphanedChrome();
+
   const server = http.createServer(async (req, res) => {
     const method = req.method || "";
     const pathname = (req.url || "").split("?")[0];
@@ -157,15 +228,48 @@ export function startServer(): http.Server {
     }
   });
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    console.log("[server] Shutting down...");
-    server.close();
-    await closeBrowserPool();
-    process.exit(0);
+  let shutdownPromise: Promise<void> | null = null;
+
+  const shutdown = (reason: string, exitCode: number, error?: unknown): Promise<void> => {
+    if (shutdownPromise) {
+      console.log(`[server] Shutdown already in progress (reason=${reason})`);
+      return shutdownPromise;
+    }
+
+    shutdownPromise = (async () => {
+      if (error) {
+        console.error(`[server] Shutdown triggered by ${reason}: ${formatError(error)}`);
+      } else {
+        console.log(`[server] Shutdown triggered by ${reason}`);
+      }
+
+      await closeHttpServer(server);
+      await closeBrowserPool(reason).catch((closeError) => {
+        console.error(
+          `[server] Failed to close browser pool during ${reason}: ${formatError(closeError)}`,
+        );
+      });
+      process.exit(exitCode);
+    })();
+
+    return shutdownPromise;
   };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+
+  process.on("SIGINT", () => {
+    void shutdown("SIGINT", 0);
+  });
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM", 0);
+  });
+  process.on("SIGHUP", () => {
+    void shutdown("SIGHUP", 0);
+  });
+  process.on("uncaughtException", (error) => {
+    void shutdown("uncaughtException", 1, error);
+  });
+  process.on("unhandledRejection", (reason) => {
+    void shutdown("unhandledRejection", 1, reason);
+  });
 
   return server;
 }

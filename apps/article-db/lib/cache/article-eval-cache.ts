@@ -1,6 +1,6 @@
 import { LRUCache } from "lru-cache";
-import { ArticleAssessment, SourceQualityScore } from "@/lib/domain/models";
-import { buildUpstashClientOrNone, UpstashClient } from "@/lib/infra/upstash";
+import type { ArticleAssessment, SourceQualityScore } from "@/lib/domain/models";
+import { buildUpstashClientOrNone, type UpstashClient } from "@/lib/infra/upstash";
 
 const ASSESSMENT_KEY_PREFIX = "cache:article_assessment";
 const ASSESSMENT_INDEX_KEY = "cache:article_assessment:index";
@@ -15,7 +15,7 @@ function normalizeTagKey(value: string): string {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -25,7 +25,7 @@ function normalizeTagValue(value: string): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_\-]/g, "_")
+    .replace(/[^a-z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
@@ -73,11 +73,23 @@ function parseTagGroups(value: unknown): Record<string, string[]> {
   Object.entries(payload as Record<string, unknown>).forEach(([groupKey, tags]) => {
     const normalizedGroup = normalizeTagKey(groupKey);
     if (!normalizedGroup) return;
-    const normalizedTags = Array.from(new Set(parseStringArray(tags).map((item) => normalizeTagValue(item)).filter(Boolean)));
+    const normalizedTags = Array.from(
+      new Set(
+        parseStringArray(tags)
+          .map((item) => normalizeTagValue(item))
+          .filter(Boolean),
+      ),
+    );
     if (!normalizedTags.length) return;
     result[normalizedGroup] = normalizedTags.slice(0, 24);
   });
   return result;
+}
+
+function clampScore(value: unknown): number {
+  const score = Number(value);
+  if (!Number.isFinite(score)) return 0;
+  return Math.max(0, Math.min(100, score));
 }
 
 function coerceConfidence(value: unknown): number {
@@ -105,13 +117,19 @@ function parseAssessment(cacheKey: string, payloadText: string): ArticleAssessme
 
   const tagGroups = parseTagGroups(payload.tag_groups);
   if (!tagGroups.type) {
-    const typeTags = Array.from(new Set([primaryType, ...secondaryTypes].map((item) => normalizeTagValue(item)).filter(Boolean)));
+    const typeTags = Array.from(
+      new Set(
+        [primaryType, ...secondaryTypes].map((item) => normalizeTagValue(item)).filter(Boolean),
+      ),
+    );
     if (typeTags.length) {
       tagGroups.type = typeTags.slice(0, 12);
     }
   }
   if (!tagGroups.role && bestForRoles.length) {
-    const roleTags = Array.from(new Set(bestForRoles.map((item) => normalizeTagValue(item)).filter(Boolean)));
+    const roleTags = Array.from(
+      new Set(bestForRoles.map((item) => normalizeTagValue(item)).filter(Boolean)),
+    );
     if (roleTags.length) {
       tagGroups.role = roleTags.slice(0, 12);
     }
@@ -130,7 +148,7 @@ function parseAssessment(cacheKey: string, payloadText: string): ArticleAssessme
     }
   }
 
-  const qualityScore = Number(payload.quality_score || 0);
+  const qualityScore = clampScore(payload.quality_score);
   let confidence = coerceConfidence(payload.confidence);
   if (!Object.keys(tagGroups).length) {
     confidence = Math.min(confidence, 0.85);
@@ -146,16 +164,16 @@ function parseAssessment(cacheKey: string, payloadText: string): ArticleAssessme
     articleId: String(payload.article_id || ""),
     worth: String(payload.worth || "跳过") as ArticleAssessment["worth"],
     qualityScore,
-    practicalityScore: Number(payload.practicality_score || 0),
-    actionabilityScore: Number(payload.actionability_score || 0),
-    noveltyScore: Number(payload.novelty_score || 0),
-    clarityScore: Number(payload.clarity_score || 0),
+    practicalityScore: clampScore(payload.practicality_score),
+    actionabilityScore: clampScore(payload.actionability_score),
+    noveltyScore: clampScore(payload.novelty_score),
+    clarityScore: clampScore(payload.clarity_score),
     oneLineSummary: String(payload.one_line_summary || ""),
     reasonShort: String(payload.reason_short || ""),
-    companyImpact: Number(payload.company_impact || 0),
-    teamImpact: Number(payload.team_impact || 0),
-    personalImpact: Number(payload.personal_impact || 0),
-    executionClarity: Number(payload.execution_clarity || 0),
+    companyImpact: clampScore(payload.company_impact),
+    teamImpact: clampScore(payload.team_impact),
+    personalImpact: clampScore(payload.personal_impact),
+    executionClarity: clampScore(payload.execution_clarity),
     actionHint: String(payload.action_hint || ""),
     bestForRoles,
     evidenceSignals,

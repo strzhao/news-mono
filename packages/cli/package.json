@@ -5,7 +5,8 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/strzhao/ai-news-cli.git"
+    "url": "git+https://github.com/strzhao/news-mono.git",
+    "directory": "packages/cli"
   },
   "homepage": "https://github.com/strzhao/ai-news-cli#readme",
   "bugs": {

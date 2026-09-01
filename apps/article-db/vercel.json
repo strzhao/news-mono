@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "functions": {
+    "app/api/v1/**/*.ts": {
+      "regions": ["sin1"]
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/v1/ingestion/run",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/v1/blob-cleanup",
+      "schedule": "0 4 * * *"
+    }
+  ]
+}

@@ -1,0 +1,362 @@
+:root {
+  /* Sage Design System */
+  --ink:          #1A1A18;
+  --paper:        #F7F6F1;
+  --mist:         #EBEBEA;
+  --smoke:        #8F8F8D;
+  --charcoal:     #595957;
+  --sage:         #3A7D68;
+  --sage-light:   #52A688;
+  --sage-mist:    #E8F2EE;
+  --amber:        #D4920A;
+  --vermillion:   #D94F3D;
+  --sky:          #3B87CC;
+
+  /* Semantic aliases (backward compat) */
+  --bg:           var(--paper);
+  --panel:        #ffffff;
+  --ink-soft:     var(--charcoal);
+  --muted:        var(--smoke);
+  --line:         var(--mist);
+  --line-soft:    #f0f0ee;
+  --accent:       var(--sage);
+  --accent-hover: var(--sage-light);
+  --danger:       var(--vermillion);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+}
+
+.newsroom-shell {
+  width: min(920px, calc(100% - 56px));
+  margin: 48px auto 96px;
+}
+
+.newsroom-hero {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.newsroom-hero h1 {
+  margin: 10px 0 0;
+  font-family: "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+  font-size: clamp(38px, 5.4vw, 62px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+.hero-meta {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.content-block {
+  margin-top: 34px;
+}
+
+.block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 12px;
+}
+
+.block-head h2 {
+  margin: 0;
+  font-size: 27px;
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.block-head span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.editorial-list,
+.archive-day-items {
+  display: grid;
+}
+
+.article-row {
+  padding: 28px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.article-row.is-compact {
+  padding: 20px 0;
+}
+
+.article-row.is-read {
+  opacity: 0.72;
+}
+
+.article-row.is-lead .article-headline {
+  font-size: clamp(30px, 3.8vw, 42px);
+  line-height: 1.14;
+}
+
+.article-copy {
+  min-width: 0;
+}
+
+.article-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.article-read {
+  color: #4d4d52;
+}
+
+.article-headline {
+  margin: 10px 0 0;
+  font-family: "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+  font-size: 30px;
+  line-height: 1.22;
+  letter-spacing: -0.015em;
+  font-weight: 610;
+}
+
+.article-row.is-compact .article-headline {
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+.article-headline a {
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.article-headline a:hover {
+  border-bottom-color: #9e9ea4;
+}
+
+.article-dek {
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 17px;
+  line-height: 1.68;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.article-row.is-compact .article-dek {
+  font-size: 15px;
+  line-height: 1.66;
+}
+
+.article-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 10px;
+}
+
+.article-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.article-cta::after {
+  content: "→";
+  font-size: 13px;
+  transform: translateY(-0.5px);
+}
+
+.article-cta:hover {
+  color: var(--accent-hover);
+}
+
+.load-more-wrap {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.load-more-btn {
+  height: 36px;
+  min-width: 120px;
+  border-radius: 999px;
+  border: 1px solid #c8cfdb;
+  background: #ffffff;
+  color: #1e2430;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background: #f4f6fa;
+}
+
+.load-more-btn:disabled {
+  color: #9aa2b1;
+  border-color: #d9dee8;
+  background: #f6f8fb;
+  cursor: not-allowed;
+}
+
+.content-block-history {
+  margin-top: 42px;
+}
+
+.archive-days {
+  margin-top: 8px;
+}
+
+.archive-day {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.archive-day[open] {
+  background: transparent;
+}
+
+.archive-day-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.archive-day-summary::-webkit-details-marker {
+  display: none;
+}
+
+.archive-day-summary::after {
+  content: "+";
+  font-size: 18px;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.archive-day[open] > .archive-day-summary::after {
+  content: "−";
+}
+
+.archive-date {
+  font-size: 18px;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+}
+
+.archive-count {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  margin-right: auto;
+  margin-left: 8px;
+}
+
+.archive-day-items {
+  padding-bottom: 6px;
+}
+
+.empty-note {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.error-banner {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #f5d5d1;
+  background: #fff3f1;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+@media (max-width: 920px) {
+  .newsroom-shell {
+    width: calc(100% - 32px);
+    margin: 26px auto 64px;
+  }
+
+  .newsroom-hero h1 {
+    font-size: clamp(34px, 10vw, 48px);
+  }
+
+  .article-row,
+  .article-row.is-compact {
+    padding: 22px 0;
+  }
+
+  .article-row.is-lead .article-headline {
+    font-size: clamp(28px, 8vw, 36px);
+  }
+
+  .article-headline {
+    font-size: 24px;
+  }
+
+  .article-row.is-compact .article-headline {
+    font-size: 21px;
+  }
+
+  .article-actions {
+    margin-top: 12px;
+    padding-right: 6px;
+  }
+
+  .block-head h2 {
+    font-size: 24px;
+  }
+}

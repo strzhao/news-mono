@@ -1,0 +1,304 @@
+sources:
+  - id: latent_space
+    name: Latent.Space
+    url: https://www.latent.space/feed
+    source_type: rss
+    source_weight: 0.95
+  - id: swyx_buttondown
+    name: swyx Newsletter
+    url: https://buttondown.com/swyx/rss
+    source_type: rss
+    source_weight: 0.92
+  - id: stable_diffusion_art
+    name: Stable Diffusion Art
+    url: https://stable-diffusion-art.com/feed/
+    source_type: rss
+    source_weight: 0.9
+  - id: bens_bites
+    name: Ben's Bites
+    url: https://www.bensbites.com/feed
+    source_type: rss
+    source_weight: 0.88
+  - id: sspai
+    name: 少数派
+    url: https://sspai.com/feed
+    source_type: rss
+    source_weight: 0.88
+  - id: huggingface_blog
+    name: Hugging Face Blog
+    url: https://huggingface.co/blog/feed.xml
+    source_type: rss
+    source_weight: 0.9
+  - id: langchain_blog
+    name: LangChain Blog
+    url: https://blog.langchain.dev/rss/
+    source_type: rss
+    source_weight: 0.9
+  - id: understanding_ai
+    name: Understanding AI
+    url: https://www.understandingai.org/feed
+    source_type: rss
+    source_weight: 0.85
+  - id: kenhuangus_substack
+    name: Ken Huang - Agentic AI
+    url: https://kenhuangus.substack.com/feed
+    source_type: rss
+    source_weight: 0.88
+
+  - id: anthropic_news
+    name: Anthropic News
+    rsshub_route: /anthropic/news
+    source_type: rss
+    source_weight: 0.95
+  - id: spotify_engineering
+    name: Spotify Engineering
+    url: https://engineering.atspotify.com/feed/
+    source_type: rss
+    source_weight: 0.88
+
+  # X/Twitter sources via self-hosted RSSHub.
+  # Set RSSHUB_BASE_URL first, e.g. https://rsshub.example.com
+  # These entries are auto-skipped when RSSHUB_BASE_URL is missing.
+  - id: x_khazix0918
+    name: 数字生命卡兹克（X）
+    rsshub_route: /twitter/user/Khazix0918
+    source_type: twitter
+
+    source_weight: 1.20
+  - id: x_dotey
+    name: 宝玉 AI（X）
+    rsshub_route: /twitter/user/dotey
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_vista8
+    name: 向阳乔木（X）
+    rsshub_route: /twitter/user/vista8
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_op7418
+    name: 歸藏（X）
+    rsshub_route: /twitter/user/op7418
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_owenyoungzh
+    name: OwenYoungZh（X）
+    rsshub_route: /twitter/user/OwenYoungZh
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_yetone
+    name: yetone（X）
+    rsshub_route: /twitter/user/yetone
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_jefferytatsuya
+    name: JefferyTatsuya（X）
+    rsshub_route: /twitter/user/JefferyTatsuya
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_jimmy_jinglv
+    name: Jimmy_JingLv（X）
+    rsshub_route: /twitter/user/Jimmy_JingLv
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_cosmtrek
+    name: cosmtrek（X）
+    rsshub_route: /twitter/user/cosmtrek
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_lxfater
+    name: lxfater（X）
+    rsshub_route: /twitter/user/lxfater
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_flashsnail
+    name: FlashSnail（X）
+    rsshub_route: /twitter/user/FlashSnail
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_frostyevening
+    name: frostyevening（X）
+    rsshub_route: /twitter/user/frostyevening
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_benn_huang
+    name: benn_huang（X）
+    rsshub_route: /twitter/user/benn_huang
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_waylybaye
+    name: waylybaye（X）
+    rsshub_route: /twitter/user/waylybaye
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_trq212
+    name: trq212（X）
+    rsshub_route: /twitter/user/trq212
+    source_type: twitter
+
+    source_weight: 1.08
+
+  # Added on 2026-03-02: related and high-link X sources (incremental expansion)
+  - id: x_hitw93
+    name: Tw93（X）
+    rsshub_route: /twitter/user/HiTw93
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_oran_ge
+    name: Orange AI（X）
+    rsshub_route: /twitter/user/oran_ge
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_ruanyf
+    name: ruanyf（X）
+    rsshub_route: /twitter/user/ruanyf
+    source_type: twitter
+
+    source_weight: 1.12
+  - id: x_mattprd
+    name: MattPRD（X）
+    rsshub_route: /twitter/user/MattPRD
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_moltbook
+    name: moltbook（X）
+    rsshub_route: /twitter/user/moltbook
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_yesnoerror
+    name: yesnoerror（X）
+    rsshub_route: /twitter/user/yesnoerror
+    source_type: twitter
+
+    source_weight: 1.12
+  - id: x_anthropicai
+    name: Anthropic（X）
+    rsshub_route: /twitter/user/AnthropicAI
+    source_type: twitter
+
+    source_weight: 1.12
+  - id: x_openai
+    name: OpenAI（X）
+    rsshub_route: /twitter/user/OpenAI
+    source_type: twitter
+
+    source_weight: 1.12
+  - id: x_googledeepmind
+    name: Google DeepMind（X）
+    rsshub_route: /twitter/user/GoogleDeepMind
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_kimi_moonshot
+    name: Kimi.ai（X）
+    rsshub_route: /twitter/user/Kimi_Moonshot
+    source_type: twitter
+
+    source_weight: 1.12
+  - id: x_claudeai
+    name: Claude（X）
+    rsshub_route: /twitter/user/ClaudeAI
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_minimax_ai
+    name: MiniMax（X）
+    rsshub_route: /twitter/user/MiniMax_AI
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_openclaw
+    name: OpenClaw（X）
+    rsshub_route: /twitter/user/openclaw
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_cursor_ai
+    name: Cursor（X）
+    rsshub_route: /twitter/user/cursor_ai
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_voidzerodev
+    name: VoidZero（X）
+    rsshub_route: /twitter/user/voidzerodev
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_garrytan
+    name: Garry Tan（X）
+    rsshub_route: /twitter/user/garrytan
+    source_type: twitter
+
+    source_weight: 1.08
+  - id: x_stitchbygoogle
+    name: Stitch by Google（X）
+    rsshub_route: /twitter/user/stitchbygoogle
+    source_type: twitter
+
+    source_weight: 1.08
+
+  # GitHub Trending (via mshibanami/GitHubTrendingRSS, GitHub Pages hosted)
+  - id: github_trending_daily
+    name: GitHub Trending (Daily)
+    url: https://mshibanami.github.io/GitHubTrendingRSS/daily/all.xml
+    source_type: github
+    source_weight: 0.85
+
+  # 微信公众号 (via 腾讯云 WeWe RSS)
+  - id: wechat_cyberchanxin
+    name: 赛博禅心（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3934419561.atom
+    source_type: wechat
+    source_weight: 0.88
+  - id: wechat_qbitai
+    name: 量子位（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3236757533.atom
+    source_type: wechat
+    source_weight: 0.92
+  - id: wechat_jiqizhixin
+    name: 机器之心（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3073282833.atom
+    source_type: wechat
+    source_weight: 0.92
+  - id: wechat_xinzhiyuan
+    name: 新智元（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3271041950.atom
+    source_type: wechat
+    source_weight: 0.90
+  - id: wechat_latepost
+    name: 晚点LatePost（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3572959446.atom
+    source_type: wechat
+    source_weight: 0.88
+  - id: wechat_aitechtalk
+    name: AI科技评论（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3098132220.atom
+    source_type: wechat
+    source_weight: 0.88
+  - id: wechat_kongmou
+    name: 孔某人的低维认知（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3940569956.atom
+    source_type: wechat
+    source_weight: 0.85
+  - id: wechat_gsytech
+    name: GSYTech（微信）
+    url: http://VPS_HOST_INTERNAL:4000/feeds/MP_WXS_3875070218.atom
+    source_type: wechat
+    source_weight: 0.85

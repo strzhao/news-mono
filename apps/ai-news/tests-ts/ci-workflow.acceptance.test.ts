@@ -4,7 +4,7 @@ import jsYaml from "js-yaml";
 import { describe, expect, it } from "vitest";
 
 const ciYaml = readFileSync(
-  resolve(__dirname, "../.github/workflows/ci.yml"),
+  resolve(__dirname, "../../../.github/workflows/ci.yml"),
   "utf-8",
 );
 const ci = jsYaml.load(ciYaml) as Record<string, any>;
@@ -36,12 +36,12 @@ describe("CI workflow", () => {
     }
   });
 
-  it("should use npm cache for faster installs", () => {
+  it("should use pnpm cache for faster installs", () => {
     for (const job of Object.values(ci.jobs) as Array<{
       steps: Array<{ with?: { cache?: string } }>;
     }>) {
       const setupNode = job.steps.find((s) => s.with?.cache !== undefined);
-      expect(setupNode?.with?.cache).toBe("npm");
+      expect(setupNode?.with?.cache).toBe("pnpm");
     }
   });
 

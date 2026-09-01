@@ -1,3 +1,6 @@
 packages:
   - apps/*
   - packages/*
+allowBuilds:
+  # esbuild postinstall 只做平台二进制落盘（tsup 依赖），放行
+  esbuild: true

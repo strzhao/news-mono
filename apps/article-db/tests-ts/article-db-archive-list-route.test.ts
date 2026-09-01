@@ -37,6 +37,7 @@ describe("article-db archive-list route", () => {
           source_id: "s1",
           source_name: "Source",
           source_host: "example.com",
+          source_channel: "rss",
           title: "Title",
           canonical_url: "https://example.com/a1",
           original_url: "https://example.com/a1",

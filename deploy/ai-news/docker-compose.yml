@@ -1,0 +1,26 @@
+# ai-news 自托管编排（VPS: 上海 43.143.124.222）
+# 部署: vps deploy ai-news（vps-ops 管线：local build → ssh load → compose up --no-build）
+# 数据层外部：Neon PG + Upstash（env_file 凭据），cron 走宿主 root crontab + docker exec
+
+services:
+  ai-news:
+    build:
+      context: ../..
+      dockerfile: deploy/ai-news/Dockerfile
+    image: ai-news:latest
+    container_name: ai-news
+    restart: unless-stopped
+    env_file:
+      - ../../apps/ai-news/.env.production
+    environment:
+      - NODE_ENV=production
+      - PORT=3007
+      - HOSTNAME=0.0.0.0
+    expose:
+      - "3007"
+    networks:
+      - little-bee-net
+
+networks:
+  little-bee-net:
+    external: true

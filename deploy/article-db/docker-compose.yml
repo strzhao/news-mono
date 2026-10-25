@@ -1,0 +1,26 @@
+# article-db 自托管编排（VPS: 上海 43.143.124.222）
+# 部署: vps deploy article-db（vps-ops 管线：local build → ssh load → compose up --no-build）
+# 数据层外部：Neon PG + Upstash + Vercel Blob（env_file 凭据），cron 走宿主 root crontab + docker exec
+
+services:
+  article-db:
+    build:
+      context: ../..
+      dockerfile: deploy/article-db/Dockerfile
+    image: article-db:latest
+    container_name: article-db
+    restart: unless-stopped
+    env_file:
+      - ../../apps/article-db/.env.production
+    environment:
+      - NODE_ENV=production
+      - PORT=3006
+      - HOSTNAME=0.0.0.0
+    expose:
+      - "3006"
+    networks:
+      - little-bee-net
+
+networks:
+  little-bee-net:
+    external: true

@@ -5,19 +5,5 @@
     "app/api/v1/**/*.ts": {
       "regions": ["sin1"]
     }
-  },
-  "crons": [
-    {
-      "path": "/api/v1/ingestion/run",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/v1/blob-cleanup",
-      "schedule": "0 4 * * *"
-    },
-    {
-      "path": "/api/v1/ingestion/monitor",
-      "schedule": "0 3 * * *"
-    }
-  ]
+  }
 }
